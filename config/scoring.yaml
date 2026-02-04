@@ -1,0 +1,149 @@
+# Component A — Business type scores (max 50)
+type_scores:
+  restaurant: 50
+  bar: 48
+  cafe: 45
+  retail: 45
+  liquor: 42
+  salon: 40
+  bakery: 40
+  spa: 38
+  food_service: 35
+  automotive: 25
+  services: 20
+  other: 10
+  consulting: 5
+  real_estate: 5
+  construction: 5
+  cleaning: 5
+
+# Keyword lists used to classify raw_type into business_type.
+# Order matters — first match wins. Each entry is a list of keywords (case-insensitive substring match).
+business_type_keywords:
+  restaurant:
+    - restaurant
+    - dining
+    - grill
+    - bbq
+    - barbecue
+    - pizza
+    - sushi
+    - thai
+    - mexican
+    - italian
+    - chinese
+    - indian
+    - seafood
+  bar:
+    - bar
+    - tavern
+    - pub
+    - nightclub
+    - lounge
+  cafe:
+    - cafe
+    - coffee
+    - tea
+    - espresso
+  retail:
+    - retail
+    - store
+    - shop
+    - boutique
+    - clothing
+    - apparel
+    - furniture
+    - electronics
+    - grocery
+  liquor:
+    - liquor
+    - wine
+    - spirits
+    - beer
+  salon:
+    - salon
+    - barber
+    - hair
+    - beauty
+    - nail
+  bakery:
+    - bakery
+    - bakehouse
+    - pastry
+    - donut
+  spa:
+    - spa
+    - massage
+    - wellness
+    - yoga
+    - fitness
+    - gym
+  food_service:
+    - food
+    - catering
+    - kitchen
+    - deli
+    - sandwich
+    - wings
+    - chicken
+    - burgers
+  automotive:
+    - auto
+    - car
+    - tire
+    - mechanic
+    - garage
+    - dealership
+  services:
+    - service
+    - laundry
+    - dry clean
+    - insurance
+    - tax
+    - accounting
+    - dental
+    - medical
+    - clinic
+    - vet
+  consulting:
+    - consulting
+    - consultant
+    - advisory
+  real_estate:
+    - real estate
+    - realty
+    - property
+  construction:
+    - construction
+    - contractor
+    - landscaping
+  cleaning:
+    - cleaning
+    - janitorial
+    - restoration
+
+# Component B — Source confidence scores (max 20)
+source_scores:
+  license_table: 20
+  news_article: 15
+  search_snippet: 8
+
+# Component C — Address completeness scores (max 15)
+# Keys are symbolic; code checks: has street + city + zip → 15; street + city → 10; city only → 5; else → 0
+address_scores:
+  street_city_zip: 15
+  street_city: 10
+  city_only: 5
+  none: 0
+
+# Component D — Recency scores (max 15)
+# Days thresholds and corresponding scores. Checked in order.
+recency_scores:
+  - max_days: 7
+    score: 15
+  - max_days: 14
+    score: 10
+  - max_days: 30
+    score: 5
+  - max_days: null  # fallback
+    score: 0

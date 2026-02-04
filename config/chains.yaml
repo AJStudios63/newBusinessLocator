@@ -1,0 +1,47 @@
+# Known chains/franchises — blocklist. Case-insensitive substring match against business_name.
+chains:
+  - Wawa
+  - "Buc-ee's"
+  - In-N-Out
+  - "Trader Joe's"
+  - Chick-fil-A
+  - "McDonald's"
+  - Starbucks
+  - Panera
+  - Chipotle
+  - Subway
+  - "Wendy's"
+  - Taco Bell
+  - KFC
+  - Pizza Hut
+  - "Domino's"
+  - "Applebee's"
+  - Cracker Barrel
+  - Waffle House
+  - Publix
+  - Walmart
+  - Target
+  - Costco
+  - Dollar General
+  - Dollar Tree
+  - Walgreens
+  - CVS
+  - Kroger
+  - Firehouse Subs
+  - "Jersey Mike's"
+  - "Arby's"
+  - Popeyes
+  - Bojangles
+  - "Captain D's"
+  - "Zaxby's"
+  - Five Guys
+  - Shake Shack
+  - Panda Express
+  - Buffalo Wild Wings
+  - Olive Garden
+  - Darden
+  - "TGI Friday's"
+  - IHOP
+  - "Denny's"
+  - Crumbl
+  - Sprouts Farmers Market

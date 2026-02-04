@@ -1,0 +1,89 @@
+# County to cities mapping
+counties:
+  Davidson:
+    - Nashville
+    - Antioch
+    - Madison
+    - Hermitage
+  Williamson:
+    - Franklin
+    - Brentwood
+    - Nolensville
+    - Spring Hill
+  Rutherford:
+    - Murfreesboro
+    - Smyrna
+    - La Vergne
+  Sumner:
+    - Gallatin
+    - Hendersonville
+    - Portland
+  Wilson:
+    - Lebanon
+    - Mount Juliet
+
+# Domain filtering
+extractable_domains:
+  - davidsoncountysource.com
+  - williamsonsource.com
+  - wilsoncountysource.com
+  - sumnercountysource.com
+  - wsmv.com
+  - fox17.com
+  - wkrn.com
+  - franklinis.com
+  - tennessean.com
+
+blocked_domains:
+  - youtube.com
+  - instagram.com
+  - facebook.com
+  - tiktok.com
+  - threads.net
+  - pinterest.com
+  - newsbreak.com
+
+# Search queries organized by tier
+# Each query has: query (the search string), county (metadata, null if multi-county), tier (A/B/C)
+queries:
+  # Tier A — License Tables
+  - query: "site:davidsoncountysource.com new business licenses"
+    county: Davidson
+    tier: A
+  - query: "site:williamsonsource.com new business licenses"
+    county: Williamson
+    tier: A
+  - query: "site:wilsoncountysource.com new business licenses"
+    county: Wilson
+    tier: A
+  - query: "site:sumnercountysource.com new business licenses"
+    county: Sumner
+    tier: A
+
+  # Tier B — News Articles (one per county/major city)
+  - query: "new business opening Nashville 2026"
+    county: Davidson
+    tier: B
+  - query: "new restaurant retail opening Nashville Antioch Madison 2026"
+    county: Davidson
+    tier: B
+  - query: "new business opening Franklin Brentwood Williamson County 2026"
+    county: Williamson
+    tier: B
+  - query: "new business opening Murfreesboro Smyrna Rutherford County 2026"
+    county: Rutherford
+    tier: B
+  - query: "new business opening Gallatin Hendersonville Sumner County 2026"
+    county: Sumner
+    tier: B
+  - query: "new business opening Lebanon Mount Juliet Wilson County 2026"
+    county: Wilson
+    tier: B
+
+  # Tier C — Type Sweeps
+  - query: "new bar cafe opening Middle Tennessee Nashville area 2026"
+    county: null
+    tier: C
+  - query: "new salon spa beauty opening Nashville Franklin Murfreesboro 2026"
+    county: null
+    tier: C
