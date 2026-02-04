@@ -1,22 +1,30 @@
-import os
+from __future__ import annotations
+
 import time
 
 import requests
 
 from config.settings import TAVILY_API_KEY
+from utils.logging_config import get_logger
 
-BASE_URL = "https://api.tavily.com"
-DEFAULT_TIMEOUT = (5, 20)
+logger = get_logger("tavily_client")
+
+BASE_URL: str = "https://api.tavily.com"
+DEFAULT_TIMEOUT: tuple[int, int] = (5, 20)
 
 # Rate limiting configuration
-RATE_LIMIT_DELAY = 0.5  # seconds between API calls
-MAX_RETRIES = 3  # maximum retry attempts for 429 responses
-INITIAL_BACKOFF = 1.0  # initial backoff delay in seconds for 429 responses
+RATE_LIMIT_DELAY: float = 0.5  # seconds between API calls
+MAX_RETRIES: int = 3  # maximum retry attempts for 429 responses
+INITIAL_BACKOFF: float = 1.0  # initial backoff delay in seconds for 429 responses
+
+# User-Agent header for HTTP requests
+USER_AGENT: str = "newBusinessLocator/1.0"
+DEFAULT_HEADERS: dict[str, str] = {"User-Agent": USER_AGENT}
 
 
 class TavilyClient:
-    def __init__(self, api_key: str | None = None):
-        self.api_key = api_key or TAVILY_API_KEY
+    def __init__(self, api_key: str | None = None) -> None:
+        self.api_key: str = api_key or TAVILY_API_KEY
         if not self.api_key:
             raise ValueError("TAVILY_API_KEY not set")
 
@@ -43,17 +51,21 @@ class TavilyClient:
                 response = requests.post(
                     f"{BASE_URL}/search",
                     json=payload,
+                    headers=DEFAULT_HEADERS,
                     timeout=DEFAULT_TIMEOUT,
                 )
                 if response.status_code == 429:
                     if attempt < MAX_RETRIES - 1:
                         backoff_delay = INITIAL_BACKOFF * (2 ** attempt)
+                        logger.debug(f"Rate limited (429), retrying in {backoff_delay}s (attempt {attempt + 1}/{MAX_RETRIES})")
                         time.sleep(backoff_delay)
                         continue
+                    logger.warning(f"Rate limited (429) after {MAX_RETRIES} attempts for search query")
                     return []
                 response.raise_for_status()
                 break
-            except requests.RequestException:
+            except requests.RequestException as e:
+                logger.error(f"HTTP request failed for search: {e}")
                 return []
 
         try:
@@ -95,17 +107,21 @@ class TavilyClient:
                 response = requests.post(
                     f"{BASE_URL}/extract",
                     json=payload,
+                    headers=DEFAULT_HEADERS,
                     timeout=DEFAULT_TIMEOUT,
                 )
                 if response.status_code == 429:
                     if attempt < MAX_RETRIES - 1:
                         backoff_delay = INITIAL_BACKOFF * (2 ** attempt)
+                        logger.debug(f"Rate limited (429), retrying in {backoff_delay}s (attempt {attempt + 1}/{MAX_RETRIES})")
                         time.sleep(backoff_delay)
                         continue
+                    logger.warning(f"Rate limited (429) after {MAX_RETRIES} attempts for extract: {url}")
                     return None
                 response.raise_for_status()
                 break
-            except requests.RequestException:
+            except requests.RequestException as e:
+                logger.error(f"HTTP request failed for extract {url}: {e}")
                 return None
 
         try:

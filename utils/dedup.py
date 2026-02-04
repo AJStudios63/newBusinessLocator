@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 import hashlib
 import re
 
 # Legal suffixes to strip (order matters — check multi-word first)
-LEGAL_SUFFIXES = ["l.l.c.", "llc", "inc.", "inc", "corp.", "corp", "ltd.", "ltd", "co.", "co"]
+LEGAL_SUFFIXES: list[str] = ["l.l.c.", "llc", "inc.", "inc", "corp.", "corp", "ltd.", "ltd", "co.", "co"]
 
 # Common words to strip
-COMMON_WORDS = {"the", "and", "&"}
+COMMON_WORDS: set[str] = {"the", "and", "&"}
 
 
 def normalize_name(name: str) -> str:

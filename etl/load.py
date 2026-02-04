@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import sqlite3
 from datetime import datetime
@@ -5,6 +7,9 @@ from datetime import datetime
 from config.settings import DB_PATH, LOG_PATH
 from db.schema import init_db
 from db.queries import insert_lead, insert_seen_url, update_pipeline_run
+from utils.logging_config import get_logger
+
+logger = get_logger("load")
 
 
 def run_load(
@@ -48,6 +53,7 @@ def run_load(
     # 3. Insert URLs and leads in a single transaction.
     leads_new = 0
     leads_found = len(business_records)
+    logger.info(f"Loading {leads_found} business records and {len(unique_source_urls)} unique URLs")
 
     with conn:
         # 3a. Insert each source URL into seen_urls.
@@ -91,6 +97,7 @@ def run_load(
         conn.close()
 
     # 10. Return the counts dict.
+    logger.info(f"Load completed: {leads_new} new leads, {leads_dupes} duplicates")
     return {
         "leads_found": leads_found,
         "leads_new": leads_new,
@@ -122,5 +129,4 @@ def log_pipeline_run(
         with open(LOG_PATH, "a") as log_file:
             log_file.write(line)
     except OSError as e:
-        import sys
-        print(f"Warning: Could not write to log file: {e}", file=sys.stderr)
+        logger.warning(f"Could not write to log file: {e}")

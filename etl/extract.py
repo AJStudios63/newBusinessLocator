@@ -6,13 +6,20 @@ filters URLs against blocked/extractable domain lists and already-seen URLs,
 extracts qualifying pages, and returns structured RawExtract dicts.
 """
 
-import yaml
+from __future__ import annotations
+
+import sqlite3
 from urllib.parse import urlparse
+
+import yaml
 
 from config.settings import SOURCES_YAML, DB_PATH
 from utils.tavily_client import TavilyClient
+from utils.logging_config import get_logger
 from db.schema import init_db
 from db.queries import get_seen_urls
+
+logger = get_logger("extract")
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +114,7 @@ def _domain_matches(domain: str, domain_list: list[str]) -> bool:
 
 def run_extract(
     client: TavilyClient | None = None,
-    conn=None,
+    conn: sqlite3.Connection | None = None,
     use_db: bool = True,
 ) -> list[dict]:
     """
@@ -132,11 +139,13 @@ def run_extract(
     # ------------------------------------------------------------------
     # 1. Load configuration from sources.yaml
     # ------------------------------------------------------------------
+    logger.info("Loading configuration from sources.yaml")
     sources = _load_sources()
     _validate_sources(sources)
     queries: list[dict] = sources.get("queries", [])
     extractable_domains: list[str] = sources.get("extractable_domains", [])
     blocked_domains: list[str] = sources.get("blocked_domains", [])
+    logger.debug(f"Loaded {len(queries)} queries, {len(extractable_domains)} extractable domains")
 
     # ------------------------------------------------------------------
     # 2. Open DB connection and fetch already-seen URLs
@@ -170,10 +179,13 @@ def run_extract(
             county: str | None = query_entry.get("county")
 
             # 4a – Search
+            logger.debug(f"Searching for: {query_text}")
             search_results: list[dict] = client.search(query_text, max_results=10)
             if not search_results:
                 # Empty or failed search — move on to the next query
+                logger.debug(f"No results for query: {query_text}")
                 continue
+            logger.debug(f"Found {len(search_results)} results for query: {query_text}")
 
             # 4b – Process each individual search result
             for result in search_results:
@@ -224,6 +236,7 @@ def run_extract(
                 # Mark URL as processed so we don't revisit it later in this run
                 processed_this_run.add(url)
 
+        logger.info(f"Extract completed: {len(results)} raw extracts collected")
         return results
 
     finally:

@@ -6,14 +6,22 @@ filters out chain businesses, scores leads, infers counties from city
 mappings, and deduplicates the final record set.
 """
 
+from __future__ import annotations
+
+import datetime
+from pathlib import Path
+
 import yaml
-from datetime import datetime
+
 from config.settings import SCORING_YAML, CHAINS_YAML, SOURCES_YAML
 from utils.parsers import parse_license_table, parse_news_article, parse_snippet
 from utils.dedup import generate_fingerprint
+from utils.logging_config import get_logger
+
+logger = get_logger("transform")
 
 
-def _load_yaml(path) -> dict:
+def _load_yaml(path: str | Path) -> dict:
     """Load a yaml file."""
     with open(path, "r") as fh:
         return yaml.safe_load(fh)
@@ -153,7 +161,7 @@ def score_lead(record: dict, scoring: dict) -> int:
     if license_date_raw:
         license_date = _parse_date(license_date_raw)
         if license_date is not None:
-            days_ago = (datetime.today().date() - license_date).days
+            days_ago = (datetime.datetime.today().date() - license_date).days
             for tier in scoring.get("recency_scores", []):
                 max_days = tier.get("max_days")
                 if max_days is None or days_ago <= max_days:
@@ -166,14 +174,14 @@ def score_lead(record: dict, scoring: dict) -> int:
     return total
 
 
-def _parse_date(date_str: str) -> "datetime.date | None":
+def _parse_date(date_str: str) -> datetime.date | None:
     """
     Attempt to parse *date_str* using the four expected formats.
     Returns a datetime.date on success, None if nothing matches.
     """
     for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m-%d-%Y", "%B %d, %Y"):
         try:
-            return datetime.strptime(date_str.strip(), fmt).date()
+            return datetime.datetime.strptime(date_str.strip(), fmt).date()
         except (ValueError, AttributeError):
             continue
     return None
@@ -241,6 +249,7 @@ def run_transform(raw_extracts: list[dict]) -> list[dict]:
     6. Return the final list.
     """
     # 1. Load configuration
+    logger.info(f"Transform starting with {len(raw_extracts)} raw extracts")
     scoring = _load_yaml(SCORING_YAML)
     _validate_scoring(scoring)
     chains_cfg = _load_yaml(CHAINS_YAML)
@@ -248,6 +257,7 @@ def run_transform(raw_extracts: list[dict]) -> list[dict]:
 
     type_keywords: dict = scoring.get("business_type_keywords", {})
     chain_list: list[str] = chains_cfg.get("chains", [])
+    logger.debug(f"Loaded {len(chain_list)} chain names to filter")
 
     # 2. Build city -> county lookup
     city_to_county = _build_city_to_county_map(sources)
@@ -286,7 +296,10 @@ def run_transform(raw_extracts: list[dict]) -> list[dict]:
         output_records.append(record)
 
     # 5. Deduplicate
+    pre_dedup_count = len(output_records)
     output_records = deduplicate(output_records)
+    logger.debug(f"Deduplicated {pre_dedup_count} -> {len(output_records)} records")
 
     # 6. Return
+    logger.info(f"Transform completed: {len(output_records)} business records")
     return output_records

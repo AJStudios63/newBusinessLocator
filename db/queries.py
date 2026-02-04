@@ -1,6 +1,9 @@
 """Named SQL query helpers for newBusinessLocator."""
 
+from __future__ import annotations
+
 import sqlite3
+from typing import Sequence
 
 
 # ---------------------------------------------------------------------------
@@ -46,7 +49,7 @@ def insert_lead(conn: sqlite3.Connection, lead: dict, commit: bool = True) -> No
 # ---------------------------------------------------------------------------
 
 
-def _rows_to_dicts(rows) -> list[dict]:
+def _rows_to_dicts(rows: Sequence[sqlite3.Row]) -> list[dict]:
     """Convert a list of sqlite3.Row objects to plain dicts."""
     return [dict(row) for row in rows]
 

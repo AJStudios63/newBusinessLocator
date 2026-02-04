@@ -1,18 +1,34 @@
-import click
+from __future__ import annotations
+
 import csv
+import os
 import sys
+
+import click
+
 from config.settings import DB_PATH
 from db.schema import init_db
 from db.queries import (
     get_leads, get_lead, update_stage, get_stats,
     get_stage_history, get_pipeline_runs,
 )
+from utils.logging_config import setup_logging
 
 
 @click.group()
-def cli():
+@click.option("--log-level", default="INFO", envvar="LOG_LEVEL",
+              type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False),
+              help="Set the logging level (default: INFO, or LOG_LEVEL env var).")
+@click.option("--log-console", is_flag=True, default=False,
+              help="Also output logs to console (in addition to file).")
+@click.pass_context
+def cli(ctx, log_level, log_console):
     """New Business Locator — POS lead generation pipeline."""
-    pass
+    # Initialize logging with the specified level
+    setup_logging(level=log_level.upper(), log_to_file=True, log_to_console=log_console)
+    # Store in context for potential use by subcommands
+    ctx.ensure_object(dict)
+    ctx.obj["log_level"] = log_level
 
 
 @cli.command()
