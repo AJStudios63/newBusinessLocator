@@ -212,51 +212,149 @@ The UNIQUE constraint on `fingerprint` in the `leads` table is the final safety 
 
 ## Build Phases & Progress Tracking
 
-### Phase 1 — Foundation (sequential, must complete first)
-- [ ] Create full directory structure + all `__init__.py` + `.gitkeep` files
-- [ ] Write `requirements.txt` (requests, click, pyyaml)
-- [ ] Write `config/settings.py` (env vars, paths)
-- [ ] Run `pip install -r requirements.txt`
+### Phase 1 — Foundation ✅ DONE
+- [x] Create full directory structure + all `__init__.py` + `.gitkeep` files
+- [x] Write `requirements.txt` (requests, click, pyyaml)
+- [x] Write `config/settings.py` (env vars, paths)
+- [x] Run `pip install -r requirements.txt`
 
-### Phase 2 — Core Modules (3 sub-agents IN PARALLEL — no interdependencies)
+### Phase 2 — Core Modules ✅ DONE
+- [x] `db/schema.py` — all CREATE TABLE / CREATE INDEX statements
+- [x] `db/queries.py` — all named SQL functions
+- [x] `config/sources.yaml` — county→city map, all Tier A/B/C queries, extractable/blocked domains
+- [x] `config/scoring.yaml` — type_scores, business_type_keywords, source/address/recency scores
+- [x] `config/chains.yaml` — seeded blocklist of 45 national chains/franchises
+- [x] `utils/tavily_client.py` — TavilyClient class with `.search()` and `.extract()` methods
+- [x] `utils/parsers.py` — `parse_license_table()`, `parse_news_article()`, `parse_snippet()`
+- [x] `utils/dedup.py` — `generate_fingerprint(name, city)` with full normalization chain
 
-**Agent A — Database Layer**
-- [ ] `db/schema.py` — all CREATE TABLE / CREATE INDEX statements
-- [ ] `db/queries.py` — all named SQL functions (get_leads, get_seen_urls, insert_lead, update_stage, get_stats, get_stage_history, get_pipeline_runs)
+### Phase 3 — ETL Modules ✅ DONE
+- [x] `etl/extract.py` — search, filter, extract, returns list[RawExtract]
+- [x] `etl/transform.py` — parse → classify → chain filter → score → infer county → dedup
+- [x] `etl/load.py` — INSERT OR IGNORE, seen_urls, pipeline_runs update, log append
 
-**Agent B — Configuration Files**
-- [ ] `config/sources.yaml` — county→city map, all Tier A/B/C queries, extractable/blocked domains
-- [ ] `config/scoring.yaml` — type_scores, business_type_keywords (priority-ordered), source_scores, address_scores, recency_scores
-- [ ] `config/chains.yaml` — seeded blocklist of 30+ national chains/franchises
+### Phase 4 — Orchestrator ✅ DONE
+- [x] `etl/pipeline.py` — extract→transform→load, dry_run support, error handling
 
-**Agent C — Utility Layer**
-- [ ] `utils/tavily_client.py` — TavilyClient class with `.search()` and `.extract()` methods
-- [ ] `utils/parsers.py` — `parse_license_table()` (markdown pipe-table → BusinessRecord list) and `parse_news_article()` (## heading / *address* pattern → BusinessRecord list) and `parse_snippet()` (title + content → minimal BusinessRecord)
-- [ ] `utils/dedup.py` — `generate_fingerprint(name, city)` with full normalization chain
+### Phase 5 — CLI ✅ DONE
+- [x] `cli/main.py` — run, leads, lead, update, stats, history, export
 
-### Phase 3 — ETL Modules (3 sub-agents IN PARALLEL — each is a self-contained module)
-> Depends on Phase 2 completing. Each module imports from utils/ and config/ but does not call the others directly.
+### Phase 6 — Verification ✅ DONE
+- [x] Smoke test: dry-run returned 23 leads, preview table printed
+- [x] Full run: 22 leads inserted (run_id=1)
+- [x] Chain filter: Buc-ee's correctly dropped; Sprouts added to blocklist
+- [x] Dedup: second run returned found=0 (all URLs already seen)
+- [x] CLI walkthrough: lead detail, two stage transitions, history audit trail, contacted_at timestamp all correct
+- [x] CSV export: 22 leads, 20 columns, stage/note changes reflected
+- [x] Scoring spot-check: lead 20 manually verified (other 10 + snippet 8 + city 5 = 23)
+- [x] Bug fix: snippet title-splitter regex changed from `\s*[-–|]\s*` to `\s+[-–|]+\s+` to stop splitting on hyphens inside words (e.g. "Buc-ee's")
 
-**Agent D — Extract**
-- [ ] `etl/extract.py` — reads sources.yaml, calls TavilyClient.search() for each query group, filters URLs against blocked/seen/extractable lists, calls TavilyClient.extract() for qualifying URLs, determines source_type from page title, returns list[RawExtract]
+---
 
-**Agent E — Transform**
-- [ ] `etl/transform.py` — routes RawExtract by source_type to the correct parser, runs classify → chain_filter → score → infer_county → deduplicate pipeline on resulting BusinessRecords, returns clean list[BusinessRecord]
+## First-Run Findings
 
-**Agent F — Load**
-- [ ] `etl/load.py` — opens SQLite via db/schema.py (auto-creates tables), INSERT OR IGNORE each BusinessRecord, inserts source URLs into seen_urls, updates pipeline_runs row with counts
+These observations from the Phase 6 run drive the Phase 7+ roadmap.
 
-### Phase 4 — Orchestrator (sequential, depends on Phase 3)
-- [ ] `etl/pipeline.py` — imports extract/transform/load; wires them in order; creates pipeline_runs row; handles errors; writes to pipeline.log
+### What worked
+- End-to-end pipeline: extract → transform → load → CLI all functional
+- Chain filter, dedup (seen_urls + fingerprint), scoring math, stage transitions, CSV export
+- `parse_license_table` and `parse_news_article` parsers are fully built and correct — they just never ran because no license-table or news-article extracts were returned
 
-### Phase 5 — CLI (sequential, depends on Phase 4)
-- [ ] `cli/main.py` — all click commands: run, leads, lead, update, stats, history, export
+### What didn't work / needs improvement
+1. **Tier A (license tables) returned zero results.** All four `site:` queries against `*countysource.com` came back empty. The parser is ready; the source URLs just aren't surfacing in Tavily search.
+2. **Almost all leads are search snippets, not extracted pages.** 22 out of 22 are `search_snippet`. Domains like nashvilleguru.com, visitmusiccity.com, bizjournals.com, and theinfatuation.com surfaced in results but aren't in `extractable_domains`, so only their title was captured — not the page content.
+3. **~18 of 22 "business names" are actually article titles.** Titles like "Coming Soon to Nashville! 10 Exciting Additions" or "What's Coming to Williamson County" are list-style articles, not individual businesses. The real businesses are inside the page body — which was never extracted.
+4. **All leads classified as `other` (score 10).** `classify()` only checks `raw_type`. Snippets have no `raw_type`, so every lead defaults to `other` regardless of what the business name says. "Rose, a Luxury Spa and Salon" should be `spa` (38), not `other` (10).
 
-### Phase 6 — Verification
-- [ ] Smoke test: `python -m cli.main run --dry-run`
-- [ ] Full run + `stats`
-- [ ] Chain filter validation
-- [ ] Dedup validation (run twice → 0 new second time)
-- [ ] CLI command walkthrough
-- [ ] CSV export test
-- [ ] Scoring spot-check on 2–3 leads
+### Real business names that came through correctly
+| ID | Name | Why it worked |
+|---|---|---|
+| 19 | WHAT'S NEW SALON & BARBER | Yelp URL → title is the actual business name |
+| 20 | Rose, a Luxury Spa and Salon | Award-site URL → title is the business name |
+| 21 | The Trinity: Where Wellness Begins | Lifestyle-blog URL → title is the business name |
+| 22 | House of Her | Same pattern |
+
+---
+
+## Next Steps Roadmap
+
+Ordered by impact. Phase 7 and 8 together close the two biggest gaps (classification and extraction depth) and should be done before 9–11.
+
+### Phase 7 — Name-based classification fallback
+**Impact: immediate score lift on every snippet lead with a typed name**
+**File: `etl/transform.py` — `classify()` function**
+
+Currently `classify()` defaults to `other` when `raw_type` is empty. Snippet leads will never have a `raw_type`. The fix: when `raw_type` is None or empty, run the same keyword match against `business_name` as a fallback before defaulting to `other`.
+
+Effect on current data:
+| Lead | Current type / score | After fix |
+|---|---|---|
+| WHAT'S NEW SALON & BARBER | other / 23 | salon / 53 |
+| Rose, a Luxury Spa and Salon | other / 23 | salon / 53 |
+| The Trinity: Where Wellness Begins | other / 23 | spa / 51 |
+
+- [ ] Update `classify()` in `etl/transform.py`: after the `raw_type` keyword loop, if no match and `raw_type` was empty, repeat the same loop against `business_name`
+- [ ] Re-score existing leads: add a CLI command `rescore` or run a one-off script that re-classifies and updates `business_type` + `pos_score` on all existing leads
+
+### Phase 8 — Expand extractable domains + re-extract article pages
+**Impact: transforms the majority of current snippet leads into parsed news_article leads**
+**Files: `config/sources.yaml` (domain list), `data/leads.db` (clear seen_urls for target URLs)**
+
+The URLs that surfaced in run 1 contain the actual business data inside the page body. We just never extracted them.
+
+Domains to add to `extractable_domains`:
+| Domain | Why |
+|---|---|
+| nashvilleguru.com | "Coming Soon" and "New Businesses" are curated lists of new Nashville businesses |
+| visitmusiccity.com | Nashville tourism board — press releases and opening lists |
+| theinfatuation.com | Restaurant guide with new-opening roundups |
+| bizjournals.com | Nashville Business Journal — structured opening announcements |
+| welcometowedgewood.com | Neighborhood blog with specific restaurant openings |
+| styleblueprint.com | Nashville lifestyle blog with business features |
+| nashtoday.6amcity.com | Nashville news, business coverage |
+| goodnightstay.com | Nashville travel blog with opening coverage |
+| yelp.com | Business listings — title is the business name, content has type/address |
+| gallatintn.gov | City government — development and business announcements |
+
+Steps:
+- [ ] Add the domains above to `extractable_domains` in `config/sources.yaml`
+- [ ] Delete the 22 current rows from `seen_urls` (one-time reset so those URLs get re-extracted on next run)
+- [ ] Run `python -m cli.main run` and verify leads now come through as `news_article` with parsed business names
+
+### Phase 9 — Article-title noise filter
+**Impact: drops low-value snippet leads that slip through even after Phase 8**
+**File: `etl/transform.py` — new filter in the `run_transform` pipeline**
+
+Some snippet leads will still be article titles — either from domains we don't extract, or from pages the news_article parser can't parse well. A noise filter catches these before they reach the DB.
+
+Heuristic rules to drop a snippet lead (any one is sufficient):
+- `business_name` starts with a number followed by a space (`"5 Nashville..."`, `"10 anticipated..."`)
+- `business_name` matches a known article-title pattern: `"What's Coming"`, `"Coming Soon to"`, `"New Businesses"` (bare, no name after), `"Economic Development"`, `"Calendar"`, `"New in [City]"`
+- `business_name` length > 60 characters (real business names are short)
+
+- [ ] Add an `is_article_title(name: str) -> bool` function in `etl/transform.py`
+- [ ] Insert the check into `run_transform` after the chain filter — drop records where `source_type == "search_snippet"` and `is_article_title(business_name)` is True
+
+### Phase 10 — Recover Tier A license table sourcing
+**Impact: highest-value source (score ceiling 100), currently dead**
+**Files: `config/sources.yaml` (queries), possibly `etl/extract.py`**
+
+The `site:` queries against `*countysource.com` returned nothing. Three approaches to try, in order:
+
+1. **Try direct extraction.** If we can find the actual license-page URLs (e.g., by manually browsing to `davidsoncountysource.com` and finding the weekly license post), add them directly to a new `direct_extract_urls` list in `sources.yaml`. The extract phase calls `TavilyClient.extract(url)` on these without needing a search hit first.
+2. **Broaden the queries.** Replace `site:davidsoncountysource.com new business licenses` with `"new business licenses" Davidson County 2026` — removes the site restriction so Tavily might surface the same page via a different index.
+3. **Add alternative license-table sources.** Other TN counties or metro areas may publish similar structured license lists on different domains.
+
+- [ ] Manually check whether `davidsoncountysource.com` license pages exist and are accessible; record a sample URL
+- [ ] Add a `direct_extract_urls` section to `sources.yaml` (list of URLs to extract unconditionally, with county metadata)
+- [ ] Update `etl/extract.py` to process `direct_extract_urls` before the search-query loop
+- [ ] Test: run pipeline, confirm license_table leads appear with full address + raw_type + high scores
+
+### Phase 11 — Scheduled weekly runs
+**Impact: keeps the lead DB current without manual intervention**
+**Files: new `scripts/schedule.sh` or launchd plist (macOS)**
+
+The pipeline is fully idempotent — `seen_urls` prevents reprocessing and `INSERT OR IGNORE` handles fingerprint collisions. Safe to run on any cadence.
+
+- [ ] Create a launchd plist (macOS) or simple cron entry that runs `python -m cli.main run` weekly (e.g., Sunday 6 AM)
+- [ ] Add a `schedule` subcommand to the CLI that installs / shows / removes the scheduled job
