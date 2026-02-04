@@ -34,10 +34,11 @@ _INSERT_LEAD_SQL = (
 )
 
 
-def insert_lead(conn: sqlite3.Connection, lead: dict) -> None:
+def insert_lead(conn: sqlite3.Connection, lead: dict, commit: bool = True) -> None:
     """Insert a single lead row; silently ignored if fingerprint already exists."""
     conn.execute(_INSERT_LEAD_SQL, lead)
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -69,8 +70,6 @@ def get_leads(
     sort       : column name to ORDER BY (default 'pos_score')
     limit      : maximum number of rows returned (default 100)
     """
-    conn.row_factory = sqlite3.Row
-
     clauses: list[str] = []
     params: dict = {}
 
@@ -106,7 +105,6 @@ def get_leads(
 
 def get_lead(conn: sqlite3.Connection, lead_id: int) -> dict | None:
     """Return a single lead as a dict, or None if not found."""
-    conn.row_factory = sqlite3.Row
     row = conn.execute("SELECT * FROM leads WHERE id = ?;", (lead_id,)).fetchone()
     return dict(row) if row else None
 
@@ -130,8 +128,6 @@ def update_stage(
     * Appends *note* (separated by a newline) to the existing notes field when provided.
     * Commits the transaction.
     """
-    conn.row_factory = sqlite3.Row
-
     # -- current stage ---------------------------------------------------
     row = conn.execute(
         "SELECT stage FROM leads WHERE id = ?;", (lead_id,)
@@ -141,52 +137,72 @@ def update_stage(
 
     old_stage: str | None = row["stage"]
     if old_stage == new_stage:
-        return  # nothing to do
+        if note is None:
+            return  # nothing to do
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute(
+                "UPDATE leads SET "
+                "notes = COALESCE(notes || char(10), '') || ?, "
+                "updated_at = datetime('now') "
+                "WHERE id = ?;",
+                (note, lead_id),
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        return
 
-    # -- history record --------------------------------------------------
-    conn.execute(
-        "INSERT INTO stage_history (lead_id, old_stage, new_stage) VALUES (?, ?, ?);",
-        (lead_id, old_stage, new_stage),
-    )
+    try:
+        conn.execute("BEGIN IMMEDIATE")
 
-    # -- main UPDATE -----------------------------------------------------
-    conn.execute(
-        "UPDATE leads SET stage = ?, updated_at = datetime('now') WHERE id = ?;",
-        (new_stage, lead_id),
-    )
-
-    # contacted_at – set only on first transition to 'Contacted'
-    if new_stage == "Contacted":
+        # -- history record --------------------------------------------------
         conn.execute(
-            "UPDATE leads SET contacted_at = datetime('now') "
-            "WHERE id = ? AND contacted_at IS NULL;",
-            (lead_id,),
+            "INSERT INTO stage_history (lead_id, old_stage, new_stage) VALUES (?, ?, ?);",
+            (lead_id, old_stage, new_stage),
         )
 
-    # closed_at – set only on first transition to a closed stage
-    if new_stage in ("Closed-Won", "Closed-Lost"):
+        # -- main UPDATE -----------------------------------------------------
         conn.execute(
-            "UPDATE leads SET closed_at = datetime('now') "
-            "WHERE id = ? AND closed_at IS NULL;",
-            (lead_id,),
+            "UPDATE leads SET stage = ?, updated_at = datetime('now') WHERE id = ?;",
+            (new_stage, lead_id),
         )
 
-    # -- optional note ---------------------------------------------------
-    if note is not None:
-        conn.execute(
-            "UPDATE leads SET "
-            "notes = COALESCE(notes || char(10), '') || ?, "
-            "updated_at = datetime('now') "
-            "WHERE id = ?;",
-            (note, lead_id),
-        )
+        # contacted_at – set only on first transition to 'Contacted'
+        if new_stage == "Contacted":
+            conn.execute(
+                "UPDATE leads SET contacted_at = datetime('now') "
+                "WHERE id = ? AND contacted_at IS NULL;",
+                (lead_id,),
+            )
 
-    conn.commit()
+        # closed_at – set only on first transition to a closed stage
+        if new_stage in ("Closed-Won", "Closed-Lost"):
+            conn.execute(
+                "UPDATE leads SET closed_at = datetime('now') "
+                "WHERE id = ? AND closed_at IS NULL;",
+                (lead_id,),
+            )
+
+        # -- optional note ---------------------------------------------------
+        if note is not None:
+            conn.execute(
+                "UPDATE leads SET "
+                "notes = COALESCE(notes || char(10), '') || ?, "
+                "updated_at = datetime('now') "
+                "WHERE id = ?;",
+                (note, lead_id),
+            )
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
 
 def get_stage_history(conn: sqlite3.Connection, lead_id: int) -> list[dict]:
     """Return all stage-change records for *lead_id*, oldest first."""
-    conn.row_factory = sqlite3.Row
     rows = conn.execute(
         "SELECT * FROM stage_history WHERE lead_id = ? ORDER BY changed_at ASC;",
         (lead_id,),
@@ -212,8 +228,6 @@ def get_stats(conn: sqlite3.Connection) -> dict:
         total_leads: int
         last_run   : dict | None     – most recent pipeline_runs row as a dict
     """
-    conn.row_factory = sqlite3.Row
-
     # by_stage
     by_stage = {
         row["stage"]: row["cnt"]
@@ -275,13 +289,19 @@ def get_seen_urls(conn: sqlite3.Connection) -> set[str]:
     return {row[0] for row in rows}
 
 
-def insert_seen_url(conn: sqlite3.Connection, url: str, county: str | None = None) -> None:
+def insert_seen_url(
+    conn: sqlite3.Connection,
+    url: str,
+    county: str | None = None,
+    commit: bool = True,
+) -> None:
     """Insert a URL into seen_urls; silently ignored if already present."""
     conn.execute(
         "INSERT OR IGNORE INTO seen_urls (url, county) VALUES (?, ?);",
         (url, county),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -308,6 +328,7 @@ def update_pipeline_run(
     leads_dupes: int,
     error_message: str | None = None,
     sources_queried: str | None = None,
+    commit: bool = True,
 ) -> None:
     """Finalise a pipeline run row with results and set run_finished_at to now."""
     conn.execute(
@@ -322,12 +343,12 @@ def update_pipeline_run(
         "WHERE id = ?;",
         (status, leads_found, leads_new, leads_dupes, error_message, sources_queried, run_id),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
 
 
 def get_pipeline_runs(conn: sqlite3.Connection, limit: int = 10) -> list[dict]:
     """Return the most recent pipeline runs, newest first."""
-    conn.row_factory = sqlite3.Row
     rows = conn.execute(
         "SELECT * FROM pipeline_runs ORDER BY run_started_at DESC LIMIT ?;",
         (limit,),

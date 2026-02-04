@@ -41,6 +41,42 @@ def _load_sources() -> dict:
         return yaml.safe_load(fh)
 
 
+def _validate_sources(sources: dict) -> None:
+    """
+    Validate that sources.yaml contains all required keys with correct types.
+
+    Raises ValueError if any required key is missing or has the wrong type.
+    """
+    required_keys = {
+        "queries": list,
+        "extractable_domains": list,
+        "blocked_domains": list,
+    }
+
+    missing_keys = []
+    type_errors = []
+
+    for key, expected_type in required_keys.items():
+        if key not in sources:
+            missing_keys.append(key)
+        elif not isinstance(sources[key], expected_type):
+            actual_type = type(sources[key]).__name__
+            type_errors.append(
+                f"'{key}' should be {expected_type.__name__}, got {actual_type}"
+            )
+
+    errors = []
+    if missing_keys:
+        errors.append(f"Missing required keys: {', '.join(missing_keys)}")
+    if type_errors:
+        errors.extend(type_errors)
+
+    if errors:
+        raise ValueError(
+            f"Invalid sources.yaml configuration: {'; '.join(errors)}"
+        )
+
+
 def _determine_source_type(title: str) -> str:
     """
     Classify a page title into a source type.
@@ -69,7 +105,11 @@ def _domain_matches(domain: str, domain_list: list[str]) -> bool:
     return False
 
 
-def run_extract(client: TavilyClient | None = None, conn=None) -> list[dict]:
+def run_extract(
+    client: TavilyClient | None = None,
+    conn=None,
+    use_db: bool = True,
+) -> list[dict]:
     """
     Main extract entry point.  Returns a list of RawExtract dicts.
 
@@ -81,6 +121,8 @@ def run_extract(client: TavilyClient | None = None, conn=None) -> list[dict]:
     conn : sqlite3.Connection | None
         An already-open DB connection.  One is created via init_db when not
         provided.
+    use_db : bool
+        When False, skip all database access (no init_db, no seen_urls lookup).
 
     Returns
     -------
@@ -91,6 +133,7 @@ def run_extract(client: TavilyClient | None = None, conn=None) -> list[dict]:
     # 1. Load configuration from sources.yaml
     # ------------------------------------------------------------------
     sources = _load_sources()
+    _validate_sources(sources)
     queries: list[dict] = sources.get("queries", [])
     extractable_domains: list[str] = sources.get("extractable_domains", [])
     blocked_domains: list[str] = sources.get("blocked_domains", [])
@@ -98,89 +141,94 @@ def run_extract(client: TavilyClient | None = None, conn=None) -> list[dict]:
     # ------------------------------------------------------------------
     # 2. Open DB connection and fetch already-seen URLs
     # ------------------------------------------------------------------
-    owns_connection = conn is None
-    if owns_connection:
-        conn = init_db(DB_PATH)
+    owns_connection = False
+    if use_db:
+        owns_connection = conn is None
+        if owns_connection:
+            conn = init_db(DB_PATH)
+        seen_urls: set[str] = get_seen_urls(conn)
+    else:
+        seen_urls = set()
 
-    seen_urls: set[str] = get_seen_urls(conn)
+    try:
+        # ------------------------------------------------------------------
+        # 3. Create TavilyClient if not provided
+        # ------------------------------------------------------------------
+        if client is None:
+            client = TavilyClient()
 
-    # ------------------------------------------------------------------
-    # 3. Create TavilyClient if not provided
-    # ------------------------------------------------------------------
-    if client is None:
-        client = TavilyClient()
+        # In-memory set to deduplicate URLs discovered within this single run
+        processed_this_run: set[str] = set()
 
-    # In-memory set to deduplicate URLs discovered within this single run
-    processed_this_run: set[str] = set()
+        # ------------------------------------------------------------------
+        # 4. Iterate over every query
+        # ------------------------------------------------------------------
+        results: list[dict] = []
 
-    # ------------------------------------------------------------------
-    # 4. Iterate over every query
-    # ------------------------------------------------------------------
-    results: list[dict] = []
+        for query_entry in queries:
+            query_text: str = query_entry.get("query", "")
+            county: str | None = query_entry.get("county")
 
-    for query_entry in queries:
-        query_text: str = query_entry.get("query", "")
-        county: str | None = query_entry.get("county")
-
-        # 4a – Search
-        search_results: list[dict] = client.search(query_text, max_results=10)
-        if not search_results:
-            # Empty or failed search — move on to the next query
-            continue
-
-        # 4b – Process each individual search result
-        for result in search_results:
-            url: str = result.get("url", "")
-            if not url:
+            # 4a – Search
+            search_results: list[dict] = client.search(query_text, max_results=10)
+            if not search_results:
+                # Empty or failed search — move on to the next query
                 continue
 
-            domain = _get_domain(url)
-
-            # --- filter: blocked domain -------------------------------------------
-            if _domain_matches(domain, blocked_domains):
-                continue
-
-            # --- filter: already seen (DB) or already processed (this run) ---------
-            if url in seen_urls or url in processed_this_run:
-                continue
-
-            # --- branch: extractable vs. snippet ----------------------------------
-            if _domain_matches(domain, extractable_domains):
-                # Attempt full-page extraction
-                extracted = client.extract(url)
-                if extracted is None:
-                    # Extraction failed — skip this URL entirely
+            # 4b – Process each individual search result
+            for result in search_results:
+                url: str = result.get("url", "")
+                if not url:
                     continue
 
-                extracted_content: str = extracted.get("content", "")
-                # Title: prefer extracted title, fall back to search-result title
-                title: str = extracted.get("title") or result.get("title", "")
-                source_type: str = _determine_source_type(title)
+                domain = _get_domain(url)
 
-                results.append({
-                    "raw_content": extracted_content,
-                    "source_url": url,
-                    "county": county,
-                    "source_type": source_type,
-                    "title": title,
-                })
-            else:
-                # Domain is neither blocked nor extractable — keep as snippet
-                results.append({
-                    "raw_content": result.get("content", ""),
-                    "source_url": url,
-                    "county": county,
-                    "source_type": "search_snippet",
-                    "title": result.get("title", ""),
-                })
+                # --- filter: blocked domain -------------------------------------------
+                if _domain_matches(domain, blocked_domains):
+                    continue
 
-            # Mark URL as processed so we don't revisit it later in this run
-            processed_this_run.add(url)
+                # --- filter: already seen (DB) or already processed (this run) ---------
+                if url in seen_urls or url in processed_this_run:
+                    continue
 
-    # ------------------------------------------------------------------
-    # 5. Tidy up and return
-    # ------------------------------------------------------------------
-    if owns_connection:
-        conn.close()
+                # --- branch: extractable vs. snippet ----------------------------------
+                if _domain_matches(domain, extractable_domains):
+                    # Attempt full-page extraction
+                    extracted = client.extract(url)
+                    if extracted is None:
+                        # Extraction failed — skip this URL entirely
+                        continue
 
-    return results
+                    extracted_content: str = extracted.get("content", "")
+                    # Title: prefer extracted title, fall back to search-result title
+                    title: str = extracted.get("title") or result.get("title", "")
+                    source_type: str = _determine_source_type(title)
+
+                    results.append({
+                        "raw_content": extracted_content,
+                        "source_url": url,
+                        "county": county,
+                        "source_type": source_type,
+                        "title": title,
+                    })
+                else:
+                    # Domain is neither blocked nor extractable — keep as snippet
+                    results.append({
+                        "raw_content": result.get("content", ""),
+                        "source_url": url,
+                        "county": county,
+                        "source_type": "search_snippet",
+                        "title": result.get("title", ""),
+                    })
+
+                # Mark URL as processed so we don't revisit it later in this run
+                processed_this_run.add(url)
+
+        return results
+
+    finally:
+        # ------------------------------------------------------------------
+        # 5. Ensure connection cleanup on success or error
+        # ------------------------------------------------------------------
+        if owns_connection and conn:
+            conn.close()

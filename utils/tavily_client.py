@@ -1,10 +1,17 @@
 import os
+import time
 
 import requests
 
 from config.settings import TAVILY_API_KEY
 
 BASE_URL = "https://api.tavily.com"
+DEFAULT_TIMEOUT = (5, 20)
+
+# Rate limiting configuration
+RATE_LIMIT_DELAY = 0.5  # seconds between API calls
+MAX_RETRIES = 3  # maximum retry attempts for 429 responses
+INITIAL_BACKOFF = 1.0  # initial backoff delay in seconds for 429 responses
 
 
 class TavilyClient:
@@ -20,6 +27,8 @@ class TavilyClient:
         Returns an empty list on any HTTP error or if the 'results' key
         is missing from the response.
         """
+        time.sleep(RATE_LIMIT_DELAY)
+
         payload = {
             "api_key": self.api_key,
             "query": query,
@@ -28,11 +37,24 @@ class TavilyClient:
             "exclude_domains": [],
         }
 
-        try:
-            response = requests.post(f"{BASE_URL}/search", json=payload)
-            response.raise_for_status()
-        except requests.RequestException:
-            return []
+        # Retry with exponential backoff for 429 responses
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = requests.post(
+                    f"{BASE_URL}/search",
+                    json=payload,
+                    timeout=DEFAULT_TIMEOUT,
+                )
+                if response.status_code == 429:
+                    if attempt < MAX_RETRIES - 1:
+                        backoff_delay = INITIAL_BACKOFF * (2 ** attempt)
+                        time.sleep(backoff_delay)
+                        continue
+                    return []
+                response.raise_for_status()
+                break
+            except requests.RequestException:
+                return []
 
         try:
             data = response.json()
@@ -60,16 +82,31 @@ class TavilyClient:
         The returned dict is expected to contain 'content' and 'url' keys.
         Returns None on any error.
         """
+        time.sleep(RATE_LIMIT_DELAY)
+
         payload = {
             "api_key": self.api_key,
             "url": url,
         }
 
-        try:
-            response = requests.post(f"{BASE_URL}/extract", json=payload)
-            response.raise_for_status()
-        except requests.RequestException:
-            return None
+        # Retry with exponential backoff for 429 responses
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = requests.post(
+                    f"{BASE_URL}/extract",
+                    json=payload,
+                    timeout=DEFAULT_TIMEOUT,
+                )
+                if response.status_code == 429:
+                    if attempt < MAX_RETRIES - 1:
+                        backoff_delay = INITIAL_BACKOFF * (2 ** attempt)
+                        time.sleep(backoff_delay)
+                        continue
+                    return None
+                response.raise_for_status()
+                break
+            except requests.RequestException:
+                return None
 
         try:
             data = response.json()

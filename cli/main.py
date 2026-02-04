@@ -52,7 +52,12 @@ def run(dry_run):
 def leads(stage, county, min_score, sort, limit):
     """List leads as a formatted table."""
     conn = init_db(DB_PATH)
-    rows = get_leads(conn, stage=stage, county=county, min_score=min_score, sort=sort, limit=limit)
+    try:
+        rows = get_leads(conn, stage=stage, county=county, min_score=min_score, sort=sort, limit=limit)
+    except ValueError as exc:
+        conn.close()
+        click.echo(str(exc), err=True)
+        sys.exit(1)
     conn.close()
 
     if not rows:
@@ -116,7 +121,8 @@ def stats():
 
     click.echo(f"\n{'=== STATS ==='}")
     click.echo(f"  Total leads : {s['total_leads']}")
-    click.echo(f"  Avg score   : {s['avg_score']:.1f}")
+    avg_score = s['avg_score']
+    click.echo(f"  Avg score   : {avg_score:.1f}" if avg_score is not None else "  Avg score   : N/A")
 
     click.echo(f"\n  By Stage:")
     for stage, count in sorted(s["by_stage"].items()):
@@ -165,7 +171,7 @@ def history(lead_id):
 @click.option("--stage", default=None, help="Filter by stage.")
 @click.option("--county", default=None, help="Filter by county.")
 @click.option("--min-score", "min_score", default=None, type=int, help="Minimum pos_score.")
-@click.option("--output", "-o", required=True, type=click.Path(), help="Output CSV file path.")
+@click.option("--output", "-o", required=True, type=click.Path(writable=True, dir_okay=False), help="Output CSV file path.")
 def export(stage, county, min_score, output):
     """Export filtered leads to CSV."""
     conn = init_db(DB_PATH)

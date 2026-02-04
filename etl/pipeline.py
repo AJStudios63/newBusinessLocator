@@ -5,6 +5,7 @@ Coordinates extract → transform → load, manages the pipeline_runs audit row,
 catches and records errors, and writes to pipeline.log.
 """
 
+import sys
 from datetime import datetime
 from config.settings import DB_PATH
 from db.schema import init_db
@@ -48,7 +49,7 @@ def run_pipeline(dry_run: bool = False) -> dict:
             run_id = insert_pipeline_run(conn, run_started_at)
 
         # --- EXTRACT --------------------------------------------------------
-        raw_extracts = run_extract(conn=conn)
+        raw_extracts = run_extract(conn=conn, use_db=not dry_run)
 
         # --- TRANSFORM ------------------------------------------------------
         business_records = run_transform(raw_extracts)
@@ -85,8 +86,8 @@ def run_pipeline(dry_run: bool = False) -> dict:
         if run_id is not None and conn is not None:
             try:
                 update_pipeline_run(conn, run_id, status="failed", leads_found=0, leads_new=0, leads_dupes=0, error_message=error_msg)
-            except Exception:
-                pass  # best-effort
+            except Exception as inner_exc:
+                print(f"Warning: Failed to record pipeline error: {inner_exc}", file=sys.stderr)
             log_pipeline_run(run_id, 0, 0, 0, status="failed", error=error_msg)
 
         return {

@@ -7,7 +7,7 @@ mappings, and deduplicates the final record set.
 """
 
 import yaml
-from datetime import datetime, timedelta
+from datetime import datetime
 from config.settings import SCORING_YAML, CHAINS_YAML, SOURCES_YAML
 from utils.parsers import parse_license_table, parse_news_article, parse_snippet
 from utils.dedup import generate_fingerprint
@@ -17,6 +17,44 @@ def _load_yaml(path) -> dict:
     """Load a yaml file."""
     with open(path, "r") as fh:
         return yaml.safe_load(fh)
+
+
+def _validate_scoring(scoring: dict) -> None:
+    """
+    Validate that scoring.yaml contains all required keys with correct types.
+
+    Raises ValueError if any required key is missing or has the wrong type.
+    """
+    required_keys = {
+        "type_scores": dict,
+        "business_type_keywords": dict,
+        "source_scores": dict,
+        "address_scores": dict,
+        "recency_scores": list,
+    }
+
+    missing_keys = []
+    type_errors = []
+
+    for key, expected_type in required_keys.items():
+        if key not in scoring:
+            missing_keys.append(key)
+        elif not isinstance(scoring[key], expected_type):
+            actual_type = type(scoring[key]).__name__
+            type_errors.append(
+                f"'{key}' should be {expected_type.__name__}, got {actual_type}"
+            )
+
+    errors = []
+    if missing_keys:
+        errors.append(f"Missing required keys: {', '.join(missing_keys)}")
+    if type_errors:
+        errors.extend(type_errors)
+
+    if errors:
+        raise ValueError(
+            f"Invalid scoring.yaml configuration: {'; '.join(errors)}"
+        )
 
 
 def _build_city_to_county_map(sources: dict) -> dict[str, str]:
@@ -204,6 +242,7 @@ def run_transform(raw_extracts: list[dict]) -> list[dict]:
     """
     # 1. Load configuration
     scoring = _load_yaml(SCORING_YAML)
+    _validate_scoring(scoring)
     chains_cfg = _load_yaml(CHAINS_YAML)
     sources = _load_yaml(SOURCES_YAML)
 

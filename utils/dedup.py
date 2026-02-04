@@ -58,8 +58,8 @@ def generate_fingerprint(name: str, city: str) -> str:
     """Generate a short fingerprint for deduplication.
 
     Concatenates normalize_name(name) and normalize_city(city) separated by a
-    pipe character, then returns the first 16 hex characters of the SHA-256
-    digest.
+    pipe character, then returns the first 32 hex characters of the SHA-256
+    digest (128 bits for better collision resistance).
 
     If *name* or *city* is None or empty, the empty string is used for that
     portion so the fingerprint can still be computed.
@@ -69,4 +69,4 @@ def generate_fingerprint(name: str, city: str) -> str:
 
     raw = f"{norm_name}|{norm_city}"
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
-    return digest[:16]
+    return digest[:32]  # 128 bits for better collision resistance

@@ -194,7 +194,7 @@ def parse_license_table(content: str, source_url: str, county: str | None = None
 _TN_CITIES = [
     "Nashville", "Franklin", "Brentwood", "Murfreesboro", "Gallatin",
     "Hendersonville", "Lebanon", "Smyrna", "Goodlettsville", "Madison",
-    "Antioch", "Hermitage", "Brentwood", "Spring Hill", "Columbia",
+    "Antioch", "Hermitage", "Spring Hill", "Columbia",
     "Shelbyville", "McMinnville", "Cookeville", "Clarksville",
     "Dickson", "Springfield", "Carthage", "Tullahoma", "Pulaski",
 ]
@@ -346,8 +346,11 @@ def parse_snippet(title: str, content: str, source_url: str, county: str | None 
     # -- Detect city --------------------------------------------------------
     city = _find_tn_city(title) or _find_tn_city(content or "")
 
+    if not business_name:
+        return []
+
     rec = _empty_record(source_url, "search_snippet", county)
-    rec["business_name"] = business_name if business_name else None
+    rec["business_name"] = business_name
     rec["city"] = city
     if city:
         rec["state"] = "TN"
