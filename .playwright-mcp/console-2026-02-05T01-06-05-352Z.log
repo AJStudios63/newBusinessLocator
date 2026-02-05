@@ -1,0 +1,5 @@
+[    2564ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/api/stats:0
+[    2742ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/api/leads?limit=100:0
+[   15579ms] [WARNING] Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}. @ webpack-internal:///(app-pages-browser)/./node_modules/@radix-ui/react-dialog/dist/index.mjs:467
+[   15580ms] [WARNING] Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}. @ webpack-internal:///(app-pages-browser)/./node_modules/@radix-ui/react-dialog/dist/index.mjs:467
+[   49639ms] [ERROR] Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://localhost:3000/api/leads/bulk?stage=Contacted&ids=3&ids=2:0

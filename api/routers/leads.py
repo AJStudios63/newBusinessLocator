@@ -128,6 +128,90 @@ def get_batch_leads(
     return {"leads": rows, "count": len(rows), "batch_id": batch_id}
 
 
+# ---------------------------------------------------------------------------
+# Duplicate Detection (must be before /{lead_id} to avoid route conflicts)
+# ---------------------------------------------------------------------------
+
+
+class MergeRequest(BaseModel):
+    """Request body for merging leads."""
+    keep_id: int
+    merge_id: int
+    field_choices: dict | None = None
+    suggestion_id: int | None = None
+
+
+@router.get("/duplicates/count")
+def get_duplicates_count(
+    conn: Annotated[sqlite3.Connection, Depends(get_db)],
+    status: str = "pending",
+):
+    """Get count of duplicate suggestions."""
+    count = get_duplicate_suggestion_count(conn, status)
+    return {"count": count, "status": status}
+
+
+@router.get("/duplicates")
+def list_duplicates(
+    conn: Annotated[sqlite3.Connection, Depends(get_db)],
+    status: str = "pending",
+    limit: int = 20,
+):
+    """List duplicate suggestions with full lead data."""
+    suggestions = get_duplicate_suggestions(conn, status, limit)
+    return {"suggestions": suggestions, "count": len(suggestions)}
+
+
+@router.post("/duplicates/scan")
+def scan_for_duplicates(
+    conn: Annotated[sqlite3.Connection, Depends(get_db)],
+    threshold: float = 0.7,
+    limit: int = 100,
+):
+    """Scan for new duplicate suggestions."""
+    count = find_duplicates(conn, threshold, limit)
+    return {"new_suggestions": count, "threshold": threshold}
+
+
+@router.patch("/duplicates/{suggestion_id}")
+def update_suggestion_status(
+    suggestion_id: int,
+    status: str,
+    conn: Annotated[sqlite3.Connection, Depends(get_db)],
+):
+    """Update a duplicate suggestion status (merged or dismissed)."""
+    if status not in ("merged", "dismissed"):
+        raise HTTPException(status_code=400, detail="Status must be 'merged' or 'dismissed'")
+
+    success = update_duplicate_suggestion(conn, suggestion_id, status)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Suggestion {suggestion_id} not found")
+
+    return {"id": suggestion_id, "status": status}
+
+
+@router.post("/merge")
+def merge_lead_pair(
+    conn: Annotated[sqlite3.Connection, Depends(get_db)],
+    request: MergeRequest = Body(...),
+):
+    """Merge two leads into one."""
+    result = merge_leads(conn, request.keep_id, request.merge_id, request.field_choices)
+    if result is None:
+        raise HTTPException(status_code=404, detail="One or both leads not found")
+
+    # Update suggestion status if provided
+    if request.suggestion_id:
+        update_duplicate_suggestion(conn, request.suggestion_id, "merged")
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Single Lead Operations (/{lead_id} must come after specific routes)
+# ---------------------------------------------------------------------------
+
+
 @router.get("/{lead_id}")
 def get_lead_detail(
     lead_id: int,
@@ -284,82 +368,3 @@ def bulk_delete_leads(
     errors = [{"id": lid, "error": "Not found or already deleted"} for lid in ids if lid not in deleted]
 
     return {"deleted": deleted, "errors": errors}
-
-
-# ---------------------------------------------------------------------------
-# Duplicate Detection
-# ---------------------------------------------------------------------------
-
-
-@router.get("/duplicates/count")
-def get_duplicates_count(
-    conn: Annotated[sqlite3.Connection, Depends(get_db)],
-    status: str = "pending",
-):
-    """Get count of duplicate suggestions."""
-    count = get_duplicate_suggestion_count(conn, status)
-    return {"count": count, "status": status}
-
-
-@router.get("/duplicates")
-def list_duplicates(
-    conn: Annotated[sqlite3.Connection, Depends(get_db)],
-    status: str = "pending",
-    limit: int = 20,
-):
-    """List duplicate suggestions with full lead data."""
-    suggestions = get_duplicate_suggestions(conn, status, limit)
-    return {"suggestions": suggestions, "count": len(suggestions)}
-
-
-@router.post("/duplicates/scan")
-def scan_for_duplicates(
-    conn: Annotated[sqlite3.Connection, Depends(get_db)],
-    threshold: float = 0.7,
-    limit: int = 100,
-):
-    """Scan for new duplicate suggestions."""
-    count = find_duplicates(conn, threshold, limit)
-    return {"new_suggestions": count, "threshold": threshold}
-
-
-@router.patch("/duplicates/{suggestion_id}")
-def update_suggestion_status(
-    suggestion_id: int,
-    status: str,
-    conn: Annotated[sqlite3.Connection, Depends(get_db)],
-):
-    """Update a duplicate suggestion status (merged or dismissed)."""
-    if status not in ("merged", "dismissed"):
-        raise HTTPException(status_code=400, detail="Status must be 'merged' or 'dismissed'")
-
-    success = update_duplicate_suggestion(conn, suggestion_id, status)
-    if not success:
-        raise HTTPException(status_code=404, detail=f"Suggestion {suggestion_id} not found")
-
-    return {"id": suggestion_id, "status": status}
-
-
-class MergeRequest(BaseModel):
-    """Request body for merging leads."""
-    keep_id: int
-    merge_id: int
-    field_choices: dict | None = None
-    suggestion_id: int | None = None
-
-
-@router.post("/merge")
-def merge_lead_pair(
-    conn: Annotated[sqlite3.Connection, Depends(get_db)],
-    request: MergeRequest = Body(...),
-):
-    """Merge two leads into one."""
-    result = merge_leads(conn, request.keep_id, request.merge_id, request.field_choices)
-    if result is None:
-        raise HTTPException(status_code=404, detail="One or both leads not found")
-
-    # Update suggestion status if provided
-    if request.suggestion_id:
-        update_duplicate_suggestion(conn, request.suggestion_id, "merged")
-
-    return result

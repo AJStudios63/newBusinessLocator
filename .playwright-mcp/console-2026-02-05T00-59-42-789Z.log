@@ -1,0 +1,17 @@
+[     437ms] TypeError: The element must be an instance of Element
+    at u (https://www.wilcosun.com/sites/wilcosun.com/files/js/js_hofMuUdNZ1GfoZKApAfDH3dfCHUiCrWhPphvJS3B2AQ.js?scope=footer&delta=0&language=en&theme=tiempos&include=eJxdiNEKwjAMAH-oLg_7oJKtWRaNTUmDdH-vyBjoy3F3WEoY1gPwlGlzq5EojkZZjaXm1wy_mRsypU1pdJVCDlKD2DHEamIzVsqBDPzBf094x5Eeim7wZQqhZ7MOrLag3vrq0qJfW4X3WGxcoxP6ur8BP2BIIQ:7:382)
+    at https://www.wilcosun.com/sites/wilcosun.com/files/js/js_hofMuUdNZ1GfoZKApAfDH3dfCHUiCrWhPphvJS3B2AQ.js?scope=footer&delta=0&language=en&theme=tiempos&include=eJxdiNEKwjAMAH-oLg_7oJKtWRaNTUmDdH-vyBjoy3F3WEoY1gPwlGlzq5EojkZZjaXm1wy_mRsypU1pdJVCDlKD2DHEamIzVsqBDPzBf094x5Eeim7wZQqhZ7MOrLag3vrq0qJfW4X3WGxcoxP6ur8BP2BIIQ:7:748
+    at Array.filter (<anonymous>)
+    at c (https://www.wilcosun.com/sites/wilcosun.com/files/js/js_hofMuUdNZ1GfoZKApAfDH3dfCHUiCrWhPphvJS3B2AQ.js?scope=footer&delta=0&language=en&theme=tiempos&include=eJxdiNEKwjAMAH-oLg_7oJKtWRaNTUmDdH-vyBjoy3F3WEoY1gPwlGlzq5EojkZZjaXm1wy_mRsypU1pdJVCDlKD2DHEamIzVsqBDPzBf094x5Eeim7wZQqhZ7MOrLag3vrq0qJfW4X3WGxcoxP6ur8BP2BIIQ:7:722)
+    at a (https://www.wilcosun.com/sites/wilcosun.com/files/js/js_hofMuUdNZ1GfoZKApAfDH3dfCHUiCrWhPphvJS3B2AQ.js?scope=footer&delta=0&language=en&theme=tiempos&include=eJxdiNEKwjAMAH-oLg_7oJKtWRaNTUmDdH-vyBjoy3F3WEoY1gPwlGlzq5EojkZZjaXm1wy_mRsypU1pdJVCDlKD2DHEamIzVsqBDPzBf094x5Eeim7wZQqhZ7MOrLag3vrq0qJfW4X3WGxcoxP6ur8BP2BIIQ:7:1015)
+    at Object.attach (https://www.wilcosun.com/sites/wilcosun.com/files/js/js_-wkLATK3iMtiI3-A_hneC1XN5d5lvvEABRdEy-EFXAo.js?scope=footer&delta=2&language=en&theme=tiempos&include=eJxdiNEKwjAMAH-oLg_7oJKtWRaNTUmDdH-vyBjoy3F3WEoY1gPwlGlzq5EojkZZjaXm1wy_mRsypU1pdJVCDlKD2DHEamIzVsqBDPzBf094x5Eeim7wZQqhZ7MOrLag3vrq0qJfW4X3WGxcoxP6ur8BP2BIIQ:25:677)
+    at https://www.wilcosun.com/sites/wilcosun.com/files/js/js_hofMuUdNZ1GfoZKApAfDH3dfCHUiCrWhPphvJS3B2AQ.js?scope=footer&delta=0&language=en&theme=tiempos&include=eJxdiNEKwjAMAH-oLg_7oJKtWRaNTUmDdH-vyBjoy3F3WEoY1gPwlGlzq5EojkZZjaXm1wy_mRsypU1pdJVCDlKD2DHEamIzVsqBDPzBf094x5Eeim7wZQqhZ7MOrLag3vrq0qJfW4X3WGxcoxP6ur8BP2BIIQ:11:427
+    at Array.forEach (<anonymous>)
+    at Drupal.attachBehaviors (https://www.wilcosun.com/sites/wilcosun.com/files/js/js_hofMuUdNZ1GfoZKApAfDH3dfCHUiCrWhPphvJS3B2AQ.js?scope=footer&delta=0&language=en&theme=tiempos&include=eJxdiNEKwjAMAH-oLg_7oJKtWRaNTUmDdH-vyBjoy3F3WEoY1gPwlGlzq5EojkZZjaXm1wy_mRsypU1pdJVCDlKD2DHEamIzVsqBDPzBf094x5Eeim7wZQqhZ7MOrLag3vrq0qJfW4X3WGxcoxP6ur8BP2BIIQ:11:353)
+    at https://www.wilcosun.com/sites/wilcosun.com/files/js/js_hofMuUdNZ1GfoZKApAfDH3dfCHUiCrWhPphvJS3B2AQ.js?scope=footer&delta=0&language=en&theme=tiempos&include=eJxdiNEKwjAMAH-oLg_7oJKtWRaNTUmDdH-vyBjoy3F3WEoY1gPwlGlzq5EojkZZjaXm1wy_mRsypU1pdJVCDlKD2DHEamIzVsqBDPzBf094x5Eeim7wZQqhZ7MOrLag3vrq0qJfW4X3WGxcoxP6ur8BP2BIIQ:12:373
+[    3800ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ https://cdnres.willyweather.com/compiled/widgetThinBar1.1.44.14.js:0
+[    5256ms] [ERROR] ErrorUtils caught an error:
+
+Cannot listen to an undefined element. [Caught in: Tried to listen to element of type click]
+
+Subsequent non-fatal errors won't be logged; see https://fburl.com/debugjs. {column: 2527, clientTime: 1770253188, extra: Object, guardList: Array(4), hash: bnv3y4} @ https://static.xx.fbcdn.net/rsrc.php/v4/yE/r/-LYB1kbXOLQ.js:75

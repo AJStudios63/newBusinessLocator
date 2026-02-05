@@ -1,0 +1,5 @@
+[   14299ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3000/api/leads?limit=100:0
+[   77129ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://localhost:3000/api/leads/duplicates?limit=50:0
+[   78110ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://localhost:3000/api/leads/duplicates?limit=50:0
+[   80125ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://localhost:3000/api/leads/duplicates?limit=50:0
+[   84139ms] [ERROR] Failed to load resource: the server responded with a status of 422 (Unprocessable Entity) @ http://localhost:3000/api/leads/duplicates?limit=50:0
