@@ -608,3 +608,51 @@ Potbelly is opening at 123 Main St in Franklin.
         assert len(records) >= 1
         potbelly = next(r for r in records if "Potbelly" in r["business_name"])
         assert potbelly["city"] == "Franklin"
+
+
+class TestParseNewsArticleStrategyPriority:
+    """Tests for extraction strategy priority order."""
+
+    def test_heading_strategy_takes_priority(self):
+        """## headings take priority over other strategies."""
+        content = """
+## Potbelly Sandwich Shop
+Opening at 123 Main St.
+
+**Velvet Taco** also mentioned but should be ignored.
+"""
+        records = parse_news_article(content, "https://example.com/article", None)
+
+        # Only the heading-based business should be extracted
+        names = [r["business_name"] for r in records]
+        assert "Potbelly Sandwich Shop" in names
+        # Bold name should NOT be extracted since headings worked
+        assert "Velvet Taco" not in names
+
+    def test_bold_strategy_over_list_and_sentence(self):
+        """Bold names take priority over list items and sentences."""
+        content = """
+**Potbelly** is the main attraction.
+
+- Some Other Place (listed but should be ignored)
+
+Another Restaurant is opening too.
+"""
+        records = parse_news_article(content, "https://example.com/article", None)
+
+        names = [r["business_name"] for r in records]
+        assert "Potbelly" in names
+        # List and sentence extractions should be skipped
+        assert len(records) == 1
+
+    def test_falls_back_to_sentence_when_no_structure(self):
+        """Falls back to sentence patterns when no structured content."""
+        content = """
+Great news for Franklin! Potbelly is opening next month.
+Velvet Taco will open nearby. Exciting times ahead.
+"""
+        records = parse_news_article(content, "https://example.com/article", None)
+
+        names = [r["business_name"] for r in records]
+        assert "Potbelly" in names
+        assert "Velvet Taco" in names
