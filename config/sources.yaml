@@ -21,18 +21,46 @@ counties:
   Wilson:
     - Lebanon
     - Mount Juliet
+  Robertson:
+    - Springfield
+    - White House
+    - Greenbrier
+  Maury:
+    - Columbia
+    - Spring Hill
+    - Mt. Pleasant
+  Dickson:
+    - Dickson
+    - White Bluff
 
 # Domain filtering
 extractable_domains:
+  # County source sites (license tables)
   - davidsoncountysource.com
   - williamsonsource.com
   - wilsoncountysource.com
   - sumnercountysource.com
+  - robertsoncountysource.com
+  - maurycountysource.com
+  - dicksoncountysource.com
+  # Local news
   - wsmv.com
   - fox17.com
   - wkrn.com
   - franklinis.com
   - tennessean.com
+  # Nashville lifestyle/food sites
+  - nashvilleguru.com
+  - visitmusiccity.com
+  - theinfatuation.com
+  - bizjournals.com
+  - welcometowedgewood.com
+  - styleblueprint.com
+  - nashtoday.6amcity.com
+  - goodnightstay.com
+  # Business listings
+  - yelp.com
+  - gallatintn.gov
 
 blocked_domains:
   - youtube.com
@@ -87,3 +115,38 @@ queries:
   - query: "new salon spa beauty opening Nashville Franklin Murfreesboro 2026"
     county: null
     tier: C
+
+# Direct URLs for license tables that don't surface via search
+# These are fetched directly by the extract phase
+direct_extract_urls:
+  # Davidson County - Nashville
+  - url: "https://davidsoncountysource.com/davidson-county-new-business-licenses-for-feb-2-2026/"
+    county: Davidson
+  - url: "https://davidsoncountysource.com/davidson-county-new-business-licenses-for-jan-21-2026/"
+    county: Davidson
+
+  # Williamson County - Franklin, Brentwood
+  - url: "https://williamsonsource.com/williamson-county-new-business-licenses-for-feb-2-2026/"
+    county: Williamson
+  - url: "https://williamsonsource.com/williamson-county-new-business-licenses-for-jan-26-2026/"
+    county: Williamson
+
+  # Wilson County - Lebanon, Mt Juliet
+  - url: "https://wilsoncountysource.com/wilson-county-new-business-licenses-for-jan-23-2026/"
+    county: Wilson
+  - url: "https://wilsoncountysource.com/wilson-county-new-business-licenses-for-jan-9-2026/"
+    county: Wilson
+
+  # Robertson County
+  - url: "https://robertsoncountysource.com/robertson-county-new-business-licenses-for-jan-26-2026/"
+    county: Robertson
+
+  # Maury County
+  - url: "https://maurycountysource.com/maury-county-new-business-licenses-for-feb-2-2026/"
+    county: Maury
+  - url: "https://maurycountysource.com/maury-county-new-business-licenses-for-jan-19-2026/"
+    county: Maury
+
+  # Dickson County
+  - url: "https://dicksoncountysource.com/dickson-county-new-business-licenses-for-jan-28-2026/"
+    county: Dickson

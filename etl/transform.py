@@ -9,6 +9,7 @@ mappings, and deduplicates the final record set.
 from __future__ import annotations
 
 import datetime
+import re
 from pathlib import Path
 
 import yaml
@@ -82,26 +83,39 @@ def classify(record: dict, type_keywords: dict) -> dict:
     Classify a BusinessRecord by matching raw_type against the keyword
     lists defined in scoring.yaml.
 
-    If raw_type is None or empty the business_type is set to 'other'.
-    Otherwise the keyword map is walked in insertion order; the first
-    type whose keyword list contains a case-insensitive substring match
-    against raw_type wins.  When no keyword matches the type falls back
-    to 'other'.
+    Classification logic:
+    1. If raw_type is present and non-empty, match keywords against it.
+    2. If raw_type is None/empty OR no keyword matched raw_type, fall back
+       to matching keywords against business_name.
+    3. If still no match, default to 'other'.
+
+    The keyword map is walked in insertion order; the first type whose
+    keyword list contains a case-insensitive substring match wins.
 
     The record is mutated in place and also returned for convenience.
     """
     raw_type = record.get("raw_type")
-    if not raw_type:
-        record["business_type"] = "other"
-        return record
+    business_name = record.get("business_name", "")
 
-    raw_type_lower = raw_type.lower()
-    for biz_type, keywords in type_keywords.items():
-        for kw in keywords:
-            if kw.lower() in raw_type_lower:
-                record["business_type"] = biz_type
-                return record
+    # Try matching against raw_type first (if present)
+    if raw_type:
+        raw_type_lower = raw_type.lower()
+        for biz_type, keywords in type_keywords.items():
+            for kw in keywords:
+                if kw.lower() in raw_type_lower:
+                    record["business_type"] = biz_type
+                    return record
 
+    # Fallback: match against business_name
+    if business_name:
+        name_lower = business_name.lower()
+        for biz_type, keywords in type_keywords.items():
+            for kw in keywords:
+                if kw.lower() in name_lower:
+                    record["business_type"] = biz_type
+                    return record
+
+    # No match found
     record["business_type"] = "other"
     return record
 
@@ -113,6 +127,56 @@ def is_chain(business_name: str, chain_list: list[str]) -> bool:
     """
     name_lower = business_name.lower()
     return any(chain.lower() in name_lower for chain in chain_list)
+
+
+# Compiled regex patterns for article title detection
+_STARTS_WITH_NUMBER_RE = re.compile(r"^\d+\s")
+_ARTICLE_TITLE_PATTERNS = [
+    re.compile(r"what'?s\s+coming", re.IGNORECASE),
+    re.compile(r"coming\s+soon\s+to", re.IGNORECASE),
+    re.compile(r"^new\s+business(es)?$", re.IGNORECASE),  # bare "new business(es)" only
+    re.compile(r"economic\s+development", re.IGNORECASE),
+    re.compile(r"\bcalendar\b", re.IGNORECASE),
+    re.compile(r"new\s+in\s+\w+", re.IGNORECASE),  # "New in Nashville", "New in Franklin"
+    re.compile(r"best\s+new\b", re.IGNORECASE),
+    re.compile(r"top\s+\d+", re.IGNORECASE),  # "Top 10", "Top 5"
+    re.compile(r"opening\s+soon", re.IGNORECASE),
+    re.compile(r"grand\s+opening", re.IGNORECASE),
+    re.compile(r"exciting\s+additions?", re.IGNORECASE),
+]
+
+
+def is_article_title(name: str) -> bool:
+    """
+    Detect if a business name is actually an article title rather than
+    a real business name.
+
+    Returns True if any of the following heuristics match:
+    - Name starts with a number followed by a space (e.g., "5 Nashville...", "10 anticipated...")
+    - Name matches known article-title patterns (e.g., "What's Coming", "Coming Soon to",
+      "New Businesses", "Economic Development", "Calendar", "New in [City]",
+      "Best New", "Top [number]", "Opening Soon", "Grand Opening", "Exciting Additions")
+    - Name length exceeds 60 characters (real business names are typically short)
+
+    This filter is intended only for search_snippet source types.
+    """
+    if not name:
+        return False
+
+    # Rule 1: Starts with a number followed by a space
+    if _STARTS_WITH_NUMBER_RE.match(name):
+        return True
+
+    # Rule 2: Matches known article-title patterns
+    for pattern in _ARTICLE_TITLE_PATTERNS:
+        if pattern.search(name):
+            return True
+
+    # Rule 3: Name is too long to be a real business name
+    if len(name) > 60:
+        return True
+
+    return False
 
 
 def score_lead(record: dict, scoring: dict) -> int:
@@ -283,17 +347,29 @@ def run_transform(raw_extracts: list[dict]) -> list[dict]:
 
         all_records.extend(parsed)
 
-    # 4. Classify, filter chains, score, infer county
+    # 4. Classify, filter chains, filter article titles, score, infer county
     output_records: list[dict] = []
+    chains_filtered = 0
+    article_titles_filtered = 0
     for record in all_records:
         classify(record, type_keywords)
 
         if is_chain(record.get("business_name", ""), chain_list):
+            chains_filtered += 1
+            continue
+
+        # Filter out article titles from search snippets only
+        source_type = record.get("source_type", "")
+        if source_type == "search_snippet" and is_article_title(record.get("business_name", "")):
+            article_titles_filtered += 1
             continue
 
         score_lead(record, scoring)
         infer_county(record, city_to_county)
         output_records.append(record)
+
+    logger.debug(f"Filtered {chains_filtered} chain records")
+    logger.debug(f"Filtered {article_titles_filtered} article title records (search_snippet only)")
 
     # 5. Deduplicate
     pre_dedup_count = len(output_records)

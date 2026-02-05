@@ -145,7 +145,8 @@ def run_extract(
     queries: list[dict] = sources.get("queries", [])
     extractable_domains: list[str] = sources.get("extractable_domains", [])
     blocked_domains: list[str] = sources.get("blocked_domains", [])
-    logger.debug(f"Loaded {len(queries)} queries, {len(extractable_domains)} extractable domains")
+    direct_extract_urls: list[dict] = sources.get("direct_extract_urls", [])
+    logger.debug(f"Loaded {len(queries)} queries, {len(extractable_domains)} extractable domains, {len(direct_extract_urls)} direct URLs")
 
     # ------------------------------------------------------------------
     # 2. Open DB connection and fetch already-seen URLs
@@ -169,16 +170,58 @@ def run_extract(
         # In-memory set to deduplicate URLs discovered within this single run
         processed_this_run: set[str] = set()
 
-        # ------------------------------------------------------------------
-        # 4. Iterate over every query
-        # ------------------------------------------------------------------
         results: list[dict] = []
 
+        # ------------------------------------------------------------------
+        # 4. Process direct extract URLs first (license tables)
+        # ------------------------------------------------------------------
+        if direct_extract_urls:
+            logger.info(f"Processing {len(direct_extract_urls)} direct extract URLs")
+            for url_entry in direct_extract_urls:
+                url: str = url_entry.get("url", "")
+                county: str | None = url_entry.get("county")
+
+                if not url:
+                    continue
+
+                # Skip if already seen in DB or processed this run
+                if url in seen_urls or url in processed_this_run:
+                    logger.debug(f"Skipping already-seen direct URL: {url}")
+                    continue
+
+                # Extract the page content
+                logger.debug(f"Extracting direct URL: {url}")
+                extracted = client.extract(url)
+                if extracted is None:
+                    logger.warning(f"Failed to extract direct URL: {url}")
+                    continue
+
+                extracted_content: str = extracted.get("content", "")
+                title: str = extracted.get("title", "")
+
+                # Determine source type from title (should be license_table for these URLs)
+                source_type: str = _determine_source_type(title)
+
+                results.append({
+                    "raw_content": extracted_content,
+                    "source_url": url,
+                    "county": county,
+                    "source_type": source_type,
+                    "title": title,
+                })
+
+                processed_this_run.add(url)
+
+            logger.info(f"Collected {len(results)} extracts from direct URLs")
+
+        # ------------------------------------------------------------------
+        # 5. Iterate over every search query
+        # ------------------------------------------------------------------
         for query_entry in queries:
             query_text: str = query_entry.get("query", "")
             county: str | None = query_entry.get("county")
 
-            # 4a – Search
+            # 5a – Search
             logger.debug(f"Searching for: {query_text}")
             search_results: list[dict] = client.search(query_text, max_results=10)
             if not search_results:
@@ -187,7 +230,7 @@ def run_extract(
                 continue
             logger.debug(f"Found {len(search_results)} results for query: {query_text}")
 
-            # 4b – Process each individual search result
+            # 5b – Process each individual search result
             for result in search_results:
                 url: str = result.get("url", "")
                 if not url:
@@ -241,7 +284,7 @@ def run_extract(
 
     finally:
         # ------------------------------------------------------------------
-        # 5. Ensure connection cleanup on success or error
+        # 6. Ensure connection cleanup on success or error
         # ------------------------------------------------------------------
         if owns_connection and conn:
             conn.close()

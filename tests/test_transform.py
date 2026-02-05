@@ -4,6 +4,7 @@ Tests for etl/transform.py
 Tests the transformation functions:
 - classify: classifies business type from raw_type
 - is_chain: checks if business is a known chain
+- is_article_title: detects article titles masquerading as business names
 - score_lead: computes lead quality score
 - infer_county: infers county from city
 - deduplicate: deduplicates records by fingerprint
@@ -15,6 +16,7 @@ from datetime import datetime, timedelta
 from etl.transform import (
     classify,
     is_chain,
+    is_article_title,
     score_lead,
     infer_county,
     deduplicate,
@@ -87,11 +89,33 @@ class TestClassify:
         assert record["business_type"] == "other"
 
     def test_defaults_to_other_when_raw_type_none(self, type_keywords):
-        """Defaults to 'other' when raw_type is None."""
+        """Defaults to 'other' when raw_type is None and no business_name match."""
         record = {"raw_type": None}
         classify(record, type_keywords)
 
         assert record["business_type"] == "other"
+
+    def test_fallback_to_business_name_when_raw_type_empty(self, type_keywords):
+        """Falls back to business_name when raw_type is empty."""
+        record = {"raw_type": "", "business_name": "Joe's Pizza Palace"}
+        classify(record, type_keywords)
+
+        assert record["business_type"] == "restaurant"
+
+    def test_fallback_to_business_name_when_raw_type_none(self, type_keywords):
+        """Falls back to business_name when raw_type is None."""
+        record = {"raw_type": None, "business_name": "Downtown Hair Salon"}
+        classify(record, type_keywords)
+
+        assert record["business_type"] == "salon"
+
+    def test_raw_type_takes_priority_over_business_name(self, type_keywords):
+        """raw_type match takes priority over business_name match."""
+        record = {"raw_type": "Coffee Shop", "business_name": "The Pizza Cafe"}
+        classify(record, type_keywords)
+
+        # Should match cafe from raw_type, not restaurant from business_name
+        assert record["business_type"] == "cafe"
 
     def test_first_match_wins(self, type_keywords):
         """First matching keyword in order wins."""
@@ -143,6 +167,148 @@ class TestIsChain:
         """Doesn't false positive on partial matches."""
         # "Sub" is not Subway
         assert is_chain("Sub Shop", chain_list) is False
+
+
+# ---------------------------------------------------------------------------
+# is_article_title Tests
+# ---------------------------------------------------------------------------
+
+
+class TestIsArticleTitle:
+    """Tests for the is_article_title function."""
+
+    # -------------------------------------------------------------------------
+    # Rule 1: Starts with number followed by space
+    # -------------------------------------------------------------------------
+
+    def test_starts_with_number_and_space(self):
+        """Detects titles starting with number + space."""
+        assert is_article_title("5 Nashville Restaurants Opening This Month") is True
+        assert is_article_title("10 anticipated new places to eat") is True
+        assert is_article_title("12 New Businesses Coming to Franklin") is True
+
+    def test_number_without_space_not_filtered(self):
+        """Does not filter names where number is part of the name."""
+        assert is_article_title("7-Eleven") is False
+        assert is_article_title("3rd & Lindsley") is False
+        assert is_article_title("21c Museum Hotel") is False
+
+    # -------------------------------------------------------------------------
+    # Rule 2: Known article-title patterns
+    # -------------------------------------------------------------------------
+
+    def test_whats_coming_pattern(self):
+        """Detects 'What's Coming' pattern."""
+        assert is_article_title("What's Coming to Nashville in 2026") is True
+        assert is_article_title("Whats Coming to Williamson County") is True
+
+    def test_coming_soon_to_pattern(self):
+        """Detects 'Coming Soon to' pattern."""
+        assert is_article_title("Coming Soon to Nashville! 10 Exciting Additions") is True
+        assert is_article_title("Coming Soon to Franklin") is True
+
+    def test_new_businesses_bare_pattern(self):
+        """Detects bare 'New Businesses' without specific name."""
+        assert is_article_title("New Businesses") is True
+        assert is_article_title("New Business") is True
+        # Should NOT match if there's more to the name
+        assert is_article_title("New Business Solutions LLC") is False
+
+    def test_economic_development_pattern(self):
+        """Detects 'Economic Development' pattern."""
+        assert is_article_title("Davidson County Economic Development Report") is True
+        assert is_article_title("Economic Development News") is True
+
+    def test_calendar_pattern(self):
+        """Detects 'Calendar' pattern."""
+        assert is_article_title("Business Events Calendar - Nashville") is True
+        assert is_article_title("2026 Calendar of Openings") is True
+
+    def test_new_in_city_pattern(self):
+        """Detects 'New in [City]' pattern."""
+        assert is_article_title("New in Nashville This Week") is True
+        assert is_article_title("New in Franklin: Restaurant Roundup") is True
+
+    def test_best_new_pattern(self):
+        """Detects 'Best New' pattern."""
+        assert is_article_title("Best New Restaurants in Nashville") is True
+        assert is_article_title("The Best New Bars of 2026") is True
+
+    def test_top_number_pattern(self):
+        """Detects 'Top [number]' pattern."""
+        assert is_article_title("Top 10 New Restaurants") is True
+        assert is_article_title("Top 5 Places to Eat") is True
+
+    def test_opening_soon_pattern(self):
+        """Detects 'Opening Soon' pattern."""
+        assert is_article_title("Restaurants Opening Soon in Nashville") is True
+        assert is_article_title("Opening Soon: New Retail Complex") is True
+
+    def test_grand_opening_pattern(self):
+        """Detects 'Grand Opening' pattern."""
+        assert is_article_title("Grand Opening Celebrations This Weekend") is True
+        assert is_article_title("Nashville Grand Opening Events") is True
+
+    def test_exciting_additions_pattern(self):
+        """Detects 'Exciting Additions' pattern."""
+        assert is_article_title("10 Exciting Additions to Nashville's Food Scene") is True
+        assert is_article_title("Exciting Addition to Downtown") is True
+
+    # -------------------------------------------------------------------------
+    # Rule 3: Name too long (> 60 characters)
+    # -------------------------------------------------------------------------
+
+    def test_name_over_60_characters(self):
+        """Detects names longer than 60 characters."""
+        long_name = "A" * 61
+        assert is_article_title(long_name) is True
+
+    def test_name_exactly_60_characters(self):
+        """Does not filter names exactly 60 characters."""
+        name_60 = "A" * 60
+        assert is_article_title(name_60) is False
+
+    def test_name_under_60_characters(self):
+        """Does not filter normal-length names."""
+        assert is_article_title("Rose, a Luxury Spa and Salon") is False
+        assert is_article_title("The Trinity: Where Wellness Begins") is False
+
+    # -------------------------------------------------------------------------
+    # Valid business names (should NOT be filtered)
+    # -------------------------------------------------------------------------
+
+    def test_valid_business_names_not_filtered(self):
+        """Real business names should not be filtered."""
+        valid_names = [
+            "WHAT'S NEW SALON & BARBER",  # Contains "what's" but it's the name
+            "Rose, a Luxury Spa and Salon",
+            "The Trinity: Where Wellness Begins",
+            "House of Her",
+            "Joe's Pizza Palace",
+            "Downtown Hair Salon",
+            "Nashville Coffee Co",
+            "Biscuit Love",
+            "Hattie B's Hot Chicken",
+            "The Pharmacy Burger Parlor",
+        ]
+        for name in valid_names:
+            assert is_article_title(name) is False, f"'{name}' should not be filtered"
+
+    # -------------------------------------------------------------------------
+    # Edge cases
+    # -------------------------------------------------------------------------
+
+    def test_empty_name(self):
+        """Returns False for empty name."""
+        assert is_article_title("") is False
+
+    def test_none_name(self):
+        """Returns False for None name."""
+        assert is_article_title(None) is False
+
+    def test_whitespace_only_name(self):
+        """Returns False for whitespace-only name."""
+        assert is_article_title("   ") is False
 
 
 # ---------------------------------------------------------------------------
