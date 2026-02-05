@@ -6,6 +6,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { Lead } from "@/lib/types";
 
+function getScoreColor(score: number): string {
+  if (score >= 70) return "bg-green-100 text-green-700 border-green-300";
+  if (score >= 50) return "bg-yellow-100 text-yellow-700 border-yellow-300";
+  if (score >= 30) return "bg-blue-100 text-blue-700 border-blue-300";
+  return "bg-gray-100 text-gray-600 border-gray-300";
+}
+
 interface KanbanCardProps {
   lead: Lead;
   onClick: () => void;
@@ -42,7 +49,7 @@ export function KanbanCard({ lead, onClick }: KanbanCardProps) {
           <Badge variant="outline" className="text-xs">
             {lead.business_type || "other"}
           </Badge>
-          <Badge variant="secondary" className="text-xs">
+          <Badge variant="outline" className={`text-xs ${getScoreColor(lead.pos_score)}`}>
             {lead.pos_score}
           </Badge>
         </div>

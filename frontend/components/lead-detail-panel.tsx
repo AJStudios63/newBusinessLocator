@@ -24,6 +24,7 @@ import { updateLead, updateLeadFields, getLeadsByBatch } from "@/lib/api";
 import { STAGES, BUSINESS_TYPES, type Lead, type Stage, type LeadFieldUpdate } from "@/lib/types";
 import { Pencil, X, Users, ExternalLink } from "lucide-react";
 import Link from "next/link";
+import { ScoreBadge } from "@/components/score-badge";
 
 interface LeadDetailPanelProps {
   lead: Lead | null;
@@ -153,7 +154,7 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
               <Badge variant="outline">{lead.business_type || "other"}</Badge>
             )}
             <Badge>{lead.stage}</Badge>
-            <Badge variant="secondary">Score: {lead.pos_score}</Badge>
+            <ScoreBadge lead={lead} />
             {batchCount !== null && lead.source_batch_id && (
               <Link href={`/batch/${lead.source_batch_id}`} onClick={onClose}>
                 <Badge variant="outline" className="gap-1 cursor-pointer hover:bg-muted">

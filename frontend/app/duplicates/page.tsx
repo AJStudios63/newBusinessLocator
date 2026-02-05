@@ -25,6 +25,7 @@ import {
 } from "@/lib/api";
 import { Loader2, RefreshCw, Check, X, GitMerge } from "lucide-react";
 import type { DuplicateSuggestion, Lead } from "@/lib/types";
+import { ScoreBadge } from "@/components/score-badge";
 
 const MERGEABLE_FIELDS = [
   { key: "business_name", label: "Business Name" },
@@ -236,14 +237,16 @@ export default function DuplicatesPage() {
                   >
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="a" id="keep-a" />
-                      <Label htmlFor="keep-a">
-                        Lead A: {selectedSuggestion.lead_a.business_name} (Score: {selectedSuggestion.lead_a.pos_score})
+                      <Label htmlFor="keep-a" className="flex items-center gap-2">
+                        Lead A: {selectedSuggestion.lead_a.business_name}
+                        <ScoreBadge lead={selectedSuggestion.lead_a} showLabel={false} />
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="b" id="keep-b" />
-                      <Label htmlFor="keep-b">
-                        Lead B: {selectedSuggestion.lead_b.business_name} (Score: {selectedSuggestion.lead_b.pos_score})
+                      <Label htmlFor="keep-b" className="flex items-center gap-2">
+                        Lead B: {selectedSuggestion.lead_b.business_name}
+                        <ScoreBadge lead={selectedSuggestion.lead_b} showLabel={false} />
                       </Label>
                     </div>
                   </RadioGroup>
@@ -327,7 +330,7 @@ function LeadCard({ lead, label }: { lead: Lead; label: string }) {
     <div className="p-4 bg-muted rounded-lg">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-muted-foreground">{label}</span>
-        <Badge variant="secondary">Score: {lead.pos_score}</Badge>
+        <ScoreBadge lead={lead} />
       </div>
       <h3 className="font-semibold">{lead.business_name}</h3>
       <div className="mt-2 text-sm space-y-1">

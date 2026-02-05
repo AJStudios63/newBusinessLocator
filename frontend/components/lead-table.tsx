@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { bulkUpdateLeads, bulkDeleteLeads } from "@/lib/api";
 import { STAGES, type Lead, type Stage } from "@/lib/types";
 import { Trash2 } from "lucide-react";
+import { ScoreCell } from "@/components/score-badge";
 
 interface LeadTableProps {
   leads: Lead[];
@@ -155,7 +156,7 @@ export function LeadTable({ leads, onRowClick }: LeadTableProps) {
               <TableHead>Type</TableHead>
               <TableHead>City</TableHead>
               <TableHead>County</TableHead>
-              <TableHead className="text-right">Score</TableHead>
+              <TableHead className="text-right">Quality</TableHead>
               <TableHead>Stage</TableHead>
             </TableRow>
           </TableHeader>
@@ -178,7 +179,9 @@ export function LeadTable({ leads, onRowClick }: LeadTableProps) {
                 </TableCell>
                 <TableCell>{lead.city || "—"}</TableCell>
                 <TableCell>{lead.county || "—"}</TableCell>
-                <TableCell className="text-right">{lead.pos_score}</TableCell>
+                <TableCell className="text-right">
+                  <ScoreCell score={lead.pos_score} />
+                </TableCell>
                 <TableCell>
                   <Badge>{lead.stage}</Badge>
                 </TableCell>
