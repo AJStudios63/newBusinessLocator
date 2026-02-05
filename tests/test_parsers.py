@@ -323,6 +323,69 @@ Opening soon in Franklin.
         assert records[0]["county"] == "Williamson"
 
 
+class TestParseNewsArticleBoldNames:
+    """Tests for bold name extraction strategy."""
+
+    def test_extracts_bold_double_asterisk(self):
+        """Extracts business names from **bold** markdown."""
+        content = """
+Here are the new businesses opening:
+
+**Potbelly Sandwich Shop** is opening at 123 Main St, Franklin.
+
+**Velvet Taco** will be located at 456 Oak Ave, Nashville.
+
+**Local Coffee Co** coming soon to Brentwood.
+"""
+        records = parse_news_article(content, "https://example.com/article", "Williamson")
+
+        names = [r["business_name"] for r in records]
+        assert "Potbelly Sandwich Shop" in names
+        assert "Velvet Taco" in names
+        assert "Local Coffee Co" in names
+        assert len(records) == 3
+
+    def test_extracts_bold_double_underscore(self):
+        """Extracts business names from __bold__ markdown."""
+        content = """
+__Nashville Taco Co__ opening downtown.
+__Franklin Brewing__ coming to Cool Springs.
+"""
+        records = parse_news_article(content, "https://example.com/article", None)
+
+        names = [r["business_name"] for r in records]
+        assert "Nashville Taco Co" in names
+        assert "Franklin Brewing" in names
+
+    def test_skips_generic_bold_words(self):
+        """Skips bold text that isn't a business name."""
+        content = """
+**New** businesses are **Opening** this month.
+**Potbelly** is one of them.
+"""
+        records = parse_news_article(content, "https://example.com/article", None)
+
+        names = [r["business_name"] for r in records]
+        assert "New" not in names
+        assert "Opening" not in names
+        assert "Potbelly" in names
+
+    def test_extracts_address_after_bold_name(self):
+        """Associates address on same/next line with bold business name."""
+        content = """
+**Potbelly Sandwich Shop**
+*123 Main Street, Franklin, TN 37064*
+
+Great sandwiches coming soon!
+"""
+        records = parse_news_article(content, "https://example.com/article", None)
+
+        assert len(records) == 1
+        assert records[0]["business_name"] == "Potbelly Sandwich Shop"
+        assert records[0]["address"] == "123 Main Street"
+        assert records[0]["city"] == "Franklin"
+
+
 # ---------------------------------------------------------------------------
 # parse_snippet Tests
 # ---------------------------------------------------------------------------
