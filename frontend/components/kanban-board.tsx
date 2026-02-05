@@ -4,12 +4,15 @@ import { useState } from "react";
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
+  pointerWithin,
+  rectIntersection,
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
   type DragEndEvent,
   type DragStartEvent,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -21,6 +24,45 @@ import { KanbanCard } from "./kanban-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { updateLeadStage } from "@/lib/api";
 import { STAGES, type Lead, type Stage, type KanbanData } from "@/lib/types";
+
+interface DroppableColumnProps {
+  stage: Stage;
+  leads: Lead[];
+  onCardClick: (lead: Lead) => void;
+}
+
+function DroppableColumn({ stage, leads, onCardClick }: DroppableColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({ id: stage });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex-shrink-0 w-72 rounded-lg p-3 transition-colors ${
+        isOver ? "bg-primary/10 ring-2 ring-primary" : "bg-muted/50"
+      }`}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold text-sm">{stage}</h3>
+        <span className="text-xs text-muted-foreground">{leads.length}</span>
+      </div>
+      <SortableContext
+        id={stage}
+        items={leads.map((l) => l.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div className="space-y-2 min-h-[100px]">
+          {leads.map((lead) => (
+            <KanbanCard
+              key={lead.id}
+              lead={lead}
+              onClick={() => onCardClick(lead)}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </div>
+  );
+}
 
 interface KanbanBoardProps {
   data: KanbanData;
@@ -50,6 +92,25 @@ export function KanbanBoard({ data, onCardClick }: KanbanBoardProps) {
     },
   });
 
+  // Custom collision detection that prefers droppable columns over sortable items
+  const collisionDetection: CollisionDetection = (args) => {
+    // First check for pointer within droppables (columns)
+    const pointerCollisions = pointerWithin(args);
+
+    // Filter to only column droppables (string IDs that match stage names)
+    const columnCollisions = pointerCollisions.filter(
+      (collision) => typeof collision.id === "string" && STAGES.includes(collision.id as Stage)
+    );
+
+    // If we're over a column, use that
+    if (columnCollisions.length > 0) {
+      return columnCollisions;
+    }
+
+    // Otherwise fall back to rect intersection for cards
+    return rectIntersection(args);
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as number);
   };
@@ -61,9 +122,27 @@ export function KanbanBoard({ data, onCardClick }: KanbanBoardProps) {
     if (!over) return;
 
     const leadId = active.id as number;
-    const targetStage = over.id as Stage;
+    const overId = over.id;
 
-    // Find current stage of the lead
+    // Determine target stage - could be a stage name (string) or a lead id (number)
+    let targetStage: Stage | null = null;
+
+    if (typeof overId === "string" && STAGES.includes(overId as Stage)) {
+      // Dropped directly on a column
+      targetStage = overId as Stage;
+    } else {
+      // Dropped on another card - find which column that card is in
+      for (const stage of STAGES) {
+        if (data.columns[stage].some((l) => l.id === overId)) {
+          targetStage = stage;
+          break;
+        }
+      }
+    }
+
+    if (!targetStage) return;
+
+    // Find current stage of the lead being dragged
     let currentStage: Stage | null = null;
     for (const stage of STAGES) {
       if (data.columns[stage].some((l) => l.id === leadId)) {
@@ -72,7 +151,7 @@ export function KanbanBoard({ data, onCardClick }: KanbanBoardProps) {
       }
     }
 
-    if (currentStage && currentStage !== targetStage && STAGES.includes(targetStage)) {
+    if (currentStage && currentStage !== targetStage) {
       mutation.mutate({ id: leadId, stage: targetStage });
     }
   };
@@ -84,39 +163,18 @@ export function KanbanBoard({ data, onCardClick }: KanbanBoardProps) {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
       <div className="flex gap-4 overflow-x-auto pb-4">
         {STAGES.map((stage) => (
-          <div
+          <DroppableColumn
             key={stage}
-            id={stage}
-            className="flex-shrink-0 w-72 bg-muted/50 rounded-lg p-3"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-sm">{stage}</h3>
-              <span className="text-xs text-muted-foreground">
-                {data.columns[stage].length}
-              </span>
-            </div>
-            <SortableContext
-              id={stage}
-              items={data.columns[stage].map((l) => l.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-2 min-h-[100px]">
-                {data.columns[stage].map((lead) => (
-                  <KanbanCard
-                    key={lead.id}
-                    lead={lead}
-                    onClick={() => onCardClick(lead)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </div>
+            stage={stage}
+            leads={data.columns[stage]}
+            onCardClick={onCardClick}
+          />
         ))}
       </div>
       <DragOverlay>
