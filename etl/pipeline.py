@@ -7,7 +7,7 @@ catches and records errors, and writes to pipeline.log.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from config.settings import DB_PATH
 from db.schema import init_db
@@ -45,7 +45,7 @@ def run_pipeline(dry_run: bool = False) -> dict:
     """
     run_id = None
     conn = None
-    run_started_at = datetime.now().isoformat()
+    run_started_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
     logger.info(f"Pipeline starting (dry_run={dry_run})")
 

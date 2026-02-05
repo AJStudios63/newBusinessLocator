@@ -65,6 +65,10 @@ export const BUSINESS_TYPES: BusinessType[] = [
 export interface LeadsResponse {
   leads: Lead[];
   count: number;
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
 }
 
 export interface Stats {
@@ -113,6 +117,8 @@ export interface LeadFilters {
   maxScore?: number;
   sort?: string;
   limit?: number;
+  page?: number;
+  pageSize?: number;
 }
 
 export interface LeadFieldUpdate {

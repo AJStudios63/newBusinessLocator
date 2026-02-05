@@ -55,26 +55,19 @@ def _rows_to_dicts(rows: Sequence[sqlite3.Row]) -> list[dict]:
     return [dict(row) for row in rows]
 
 
-def get_leads(
-    conn: sqlite3.Connection,
+def _build_lead_filter_clauses(
     stage: str | None = None,
     county: str | None = None,
     min_score: int | None = None,
     max_score: int | None = None,
-    sort: str = "pos_score",
-    limit: int = 100,
-) -> list[dict]:
-    """Return leads, optionally filtered, ordered by *sort* DESC.
+) -> tuple[list[str], dict]:
+    """Build WHERE clause components for lead filtering.
 
-    Parameters
-    ----------
-    conn       : open sqlite3 connection
-    stage      : filter by stage value (optional)
-    county     : filter by county value (optional)
-    min_score  : minimum pos_score, inclusive (optional)
-    max_score  : maximum pos_score, inclusive (optional)
-    sort       : column name to ORDER BY (default 'pos_score')
-    limit      : maximum number of rows returned (default 100)
+    Returns
+    -------
+    tuple of (clauses, params) where:
+        clauses : list of SQL WHERE clause conditions
+        params  : dict of named parameters for the query
     """
     clauses: list[str] = ["deleted_at IS NULL"]
     params: dict = {}
@@ -92,6 +85,34 @@ def get_leads(
         clauses.append("pos_score <= :max_score")
         params["max_score"] = max_score
 
+    return clauses, params
+
+
+def get_leads(
+    conn: sqlite3.Connection,
+    stage: str | None = None,
+    county: str | None = None,
+    min_score: int | None = None,
+    max_score: int | None = None,
+    sort: str = "pos_score",
+    limit: int = 100,
+    offset: int = 0,
+) -> list[dict]:
+    """Return leads, optionally filtered, ordered by *sort* DESC.
+
+    Parameters
+    ----------
+    conn       : open sqlite3 connection
+    stage      : filter by stage value (optional)
+    county     : filter by county value (optional)
+    min_score  : minimum pos_score, inclusive (optional)
+    max_score  : maximum pos_score, inclusive (optional)
+    sort       : column name to ORDER BY (default 'pos_score')
+    limit      : maximum number of rows returned (default 100)
+    offset     : number of rows to skip for pagination (default 0)
+    """
+    clauses, params = _build_lead_filter_clauses(stage, county, min_score, max_score)
+
     where = " WHERE " + " AND ".join(clauses)
 
     # Guard *sort* against SQL injection – only allow identifiers that exist
@@ -105,11 +126,38 @@ def get_leads(
     if sort not in _ALLOWED_SORT_COLUMNS:
         raise ValueError(f"Invalid sort column: {sort}")
 
-    sql = f"SELECT * FROM leads{where} ORDER BY {sort} DESC LIMIT :limit;"
+    sql = f"SELECT * FROM leads{where} ORDER BY {sort} DESC LIMIT :limit OFFSET :offset;"
     params["limit"] = limit
+    params["offset"] = offset
 
     rows = conn.execute(sql, params).fetchall()
     return _rows_to_dicts(rows)
+
+
+def count_leads(
+    conn: sqlite3.Connection,
+    stage: str | None = None,
+    county: str | None = None,
+    min_score: int | None = None,
+    max_score: int | None = None,
+) -> int:
+    """Return the count of leads matching the filters.
+
+    Parameters
+    ----------
+    conn       : open sqlite3 connection
+    stage      : filter by stage value (optional)
+    county     : filter by county value (optional)
+    min_score  : minimum pos_score, inclusive (optional)
+    max_score  : maximum pos_score, inclusive (optional)
+    """
+    clauses, params = _build_lead_filter_clauses(stage, county, min_score, max_score)
+
+    where = " WHERE " + " AND ".join(clauses)
+
+    sql = f"SELECT COUNT(*) AS cnt FROM leads{where};"
+    row = conn.execute(sql, params).fetchone()
+    return row["cnt"] if row else 0
 
 
 def get_lead(conn: sqlite3.Connection, lead_id: int) -> dict | None:
@@ -122,14 +170,16 @@ def search_leads(
     conn: sqlite3.Connection,
     query: str,
     limit: int = 50,
+    offset: int = 0,
 ) -> list[dict]:
     """Full-text search on business_name, city, address using FTS5.
 
     Parameters
     ----------
-    conn  : open sqlite3 connection
-    query : search query string
-    limit : maximum number of rows returned (default 50)
+    conn   : open sqlite3 connection
+    query  : search query string
+    limit  : maximum number of rows returned (default 50)
+    offset : number of rows to skip for pagination (default 0)
 
     Returns
     -------
@@ -149,10 +199,43 @@ def search_leads(
         WHERE leads_fts MATCH :query
           AND leads.deleted_at IS NULL
         ORDER BY rank
-        LIMIT :limit;
+        LIMIT :limit OFFSET :offset;
     """
-    rows = conn.execute(sql, {"query": fts_query, "limit": limit}).fetchall()
+    rows = conn.execute(sql, {"query": fts_query, "limit": limit, "offset": offset}).fetchall()
     return _rows_to_dicts(rows)
+
+
+def count_search_leads(
+    conn: sqlite3.Connection,
+    query: str,
+) -> int:
+    """Count results from full-text search on business_name, city, address using FTS5.
+
+    Parameters
+    ----------
+    conn  : open sqlite3 connection
+    query : search query string
+
+    Returns
+    -------
+    count of leads matching the search query
+    """
+    if not query or not query.strip():
+        return 0
+
+    # Escape special FTS5 characters and add prefix matching
+    safe_query = query.replace('"', '""').strip()
+    fts_query = f'"{safe_query}"*'
+
+    sql = """
+        SELECT COUNT(*) AS cnt
+        FROM leads_fts
+        JOIN leads ON leads_fts.rowid = leads.id
+        WHERE leads_fts MATCH :query
+          AND leads.deleted_at IS NULL;
+    """
+    row = conn.execute(sql, {"query": fts_query}).fetchone()
+    return row["cnt"] if row else 0
 
 
 def get_leads_by_batch(conn: sqlite3.Connection, batch_id: str) -> list[dict]:

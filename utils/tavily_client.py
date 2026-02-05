@@ -89,16 +89,16 @@ class TavilyClient:
         return cleaned
 
     def extract(self, url: str) -> dict | None:
-        """POST to {BASE_URL}/extract and return the full response JSON.
+        """POST to {BASE_URL}/extract and return extracted content.
 
-        The returned dict is expected to contain 'content' and 'url' keys.
-        Returns None on any error.
+        The returned dict contains 'content' (or 'raw_content'), 'url', and 'title' keys.
+        Returns None on any error or if extraction fails.
         """
         time.sleep(RATE_LIMIT_DELAY)
 
         payload = {
             "api_key": self.api_key,
-            "url": url,
+            "urls": url,  # API expects 'urls' (can be string or array)
         }
 
         # Retry with exponential backoff for 429 responses
@@ -129,4 +129,18 @@ class TavilyClient:
         except ValueError:
             return None
 
-        return data
+        # Response format: {"results": [...], "failed_results": [...]}
+        results = data.get("results", [])
+        if not results:
+            failed = data.get("failed_results", [])
+            if failed:
+                logger.debug(f"Extract failed for {url}: {failed[0].get('error', 'unknown error')}")
+            return None
+
+        # Return first result, normalizing content field name
+        result = results[0]
+        # API may return 'raw_content' or 'content' depending on version
+        if "raw_content" in result and "content" not in result:
+            result["content"] = result["raw_content"]
+
+        return result

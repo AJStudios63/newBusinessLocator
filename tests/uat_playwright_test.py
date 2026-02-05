@@ -5,13 +5,13 @@ Tests all functionality using Playwright for browser automation.
 """
 
 import json
-import time
 from datetime import datetime
+from pathlib import Path
 from playwright.sync_api import sync_playwright, Page, expect
 
 # Test configuration
 BASE_URL = "http://localhost:3000"
-SCREENSHOT_DIR = "/tmp/uat_screenshots"
+SCREENSHOT_DIR = str(Path(__file__).resolve().parent / "screenshots")
 
 # Test results tracking
 test_results = []

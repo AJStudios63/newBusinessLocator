@@ -40,6 +40,8 @@ export async function getLeads(filters: LeadFilters = {}): Promise<LeadsResponse
   if (filters.maxScore !== undefined) params.set("maxScore", filters.maxScore.toString());
   if (filters.sort) params.set("sort", filters.sort);
   if (filters.limit) params.set("limit", filters.limit.toString());
+  if (filters.page !== undefined) params.set("page", filters.page.toString());
+  if (filters.pageSize !== undefined) params.set("pageSize", filters.pageSize.toString());
 
   const query = params.toString();
   return fetchJson<LeadsResponse>(`${API_BASE}/leads${query ? `?${query}` : ""}`);

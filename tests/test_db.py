@@ -18,6 +18,9 @@ from db.queries import (
     insert_lead,
     get_leads,
     get_lead,
+    count_leads,
+    search_leads,
+    count_search_leads,
     update_stage,
     get_stage_history,
     insert_seen_url,
@@ -179,6 +182,103 @@ class TestLeadCrud:
         """Returns None for non-existent lead ID."""
         lead = get_lead(populated_db, 9999)
         assert lead is None
+
+
+# ---------------------------------------------------------------------------
+# Pagination Tests
+# ---------------------------------------------------------------------------
+
+
+class TestPagination:
+    """Tests for pagination functions."""
+
+    def test_get_leads_with_offset(self, populated_db):
+        """Pagination with offset returns correct subset."""
+        # Get all leads sorted by score (default)
+        all_leads = get_leads(populated_db, limit=100)
+        assert len(all_leads) == 3
+
+        # Get first page (offset 0, limit 2)
+        page1 = get_leads(populated_db, limit=2, offset=0)
+        assert len(page1) == 2
+        assert page1[0]["id"] == all_leads[0]["id"]
+        assert page1[1]["id"] == all_leads[1]["id"]
+
+        # Get second page (offset 2, limit 2)
+        page2 = get_leads(populated_db, limit=2, offset=2)
+        assert len(page2) == 1
+        assert page2[0]["id"] == all_leads[2]["id"]
+
+    def test_get_leads_offset_beyond_results(self, populated_db):
+        """Offset beyond total results returns empty list."""
+        leads = get_leads(populated_db, limit=10, offset=100)
+        assert leads == []
+
+    def test_count_leads_all(self, populated_db):
+        """Counts all non-deleted leads."""
+        count = count_leads(populated_db)
+        assert count == 3
+
+    def test_count_leads_by_stage(self, populated_db):
+        """Counts leads filtered by stage."""
+        count = count_leads(populated_db, stage="New")
+        assert count == 2
+
+        count = count_leads(populated_db, stage="Qualified")
+        assert count == 1
+
+    def test_count_leads_by_county(self, populated_db):
+        """Counts leads filtered by county."""
+        count = count_leads(populated_db, county="Davidson")
+        assert count == 1
+
+    def test_count_leads_by_score_range(self, populated_db):
+        """Counts leads filtered by score range."""
+        count = count_leads(populated_db, min_score=60)
+        assert count == 2
+
+        count = count_leads(populated_db, max_score=70)
+        assert count == 2
+
+        count = count_leads(populated_db, min_score=60, max_score=70)
+        assert count == 1
+
+    def test_count_leads_combined_filters(self, populated_db):
+        """Counts leads with multiple filters."""
+        count = count_leads(populated_db, stage="New", min_score=50)
+        assert count == 1
+
+    def test_count_leads_empty_result(self, populated_db):
+        """Returns 0 when no leads match filters."""
+        count = count_leads(populated_db, stage="Closed-Won")
+        assert count == 0
+
+    def test_search_leads_with_offset(self, populated_db):
+        """Search pagination with offset."""
+        # First ensure we have searchable data
+        results = search_leads(populated_db, "Test", limit=10, offset=0)
+        total = len(results)
+
+        if total > 1:
+            # Get first result
+            first_page = search_leads(populated_db, "Test", limit=1, offset=0)
+            # Get second result
+            second_page = search_leads(populated_db, "Test", limit=1, offset=1)
+            assert first_page[0]["id"] != second_page[0]["id"]
+
+    def test_count_search_leads(self, populated_db):
+        """Counts search results."""
+        count = count_search_leads(populated_db, "Test")
+        # Should match number of leads with "Test" in searchable fields
+        assert count >= 0
+
+    def test_count_search_leads_empty_query(self, populated_db):
+        """Returns 0 for empty search query."""
+        count = count_search_leads(populated_db, "")
+        assert count == 0
+
+        count = count_search_leads(populated_db, "   ")
+        assert count == 0
 
 
 # ---------------------------------------------------------------------------

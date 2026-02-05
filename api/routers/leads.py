@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, HTTPException, Body
@@ -26,6 +27,8 @@ from db.queries import (
     get_duplicate_suggestion_count,
     update_duplicate_suggestion,
     merge_leads,
+    count_leads,
+    count_search_leads,
 )
 
 router = APIRouter(prefix="/api/leads", tags=["leads"])
@@ -56,12 +59,32 @@ def list_leads(
     max_score: Annotated[int | None, Query(alias="maxScore")] = None,
     sort: str = "pos_score",
     limit: int = 50,
+    page: int = 1,
+    page_size: Annotated[int | None, Query(alias="pageSize")] = None,
 ):
-    """List leads with optional filters. Use q parameter for full-text search."""
+    """List leads with optional filters and pagination.
+
+    Use q parameter for full-text search.
+    Pagination: use page (1-indexed) and pageSize parameters.
+    The limit parameter is supported for backwards compatibility but pageSize takes precedence.
+    """
+    # Validate pagination parameters
+    if page < 1:
+        raise HTTPException(status_code=400, detail="page must be >= 1")
+
+    # Use pageSize if provided, otherwise fall back to limit
+    effective_limit = page_size if page_size is not None else limit
+
+    if effective_limit < 1:
+        raise HTTPException(status_code=400, detail="pageSize must be >= 1")
+
+    offset = (page - 1) * effective_limit
+
     try:
         if q and q.strip():
             # Full-text search mode
-            rows = search_leads(conn, q, limit=limit)
+            rows = search_leads(conn, q, limit=effective_limit, offset=offset)
+            total = count_search_leads(conn, q)
         else:
             # Regular filtered list
             rows = get_leads(
@@ -71,11 +94,29 @@ def list_leads(
                 min_score=min_score,
                 max_score=max_score,
                 sort=sort,
-                limit=limit,
+                limit=effective_limit,
+                offset=offset,
+            )
+            total = count_leads(
+                conn,
+                stage=stage,
+                county=county,
+                min_score=min_score,
+                max_score=max_score,
             )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return {"leads": rows, "count": len(rows)}
+
+    total_pages = max(1, math.ceil(total / effective_limit)) if effective_limit > 0 else 1
+
+    return {
+        "leads": rows,
+        "count": len(rows),
+        "total": total,
+        "page": page,
+        "pageSize": effective_limit,
+        "totalPages": total_pages,
+    }
 
 
 @router.get("/export")
