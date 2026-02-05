@@ -254,6 +254,47 @@ def _extract_bold_names(content: str) -> list[tuple[str, int]]:
     return results
 
 
+def _extract_list_items(content: str) -> list[tuple[str, int]]:
+    """Extract business names from bullet or numbered lists.
+
+    Handles:
+    - Dash bullets: - Item
+    - Asterisk bullets: * Item
+    - Numbered: 1. Item, 2. Item
+
+    Strips description text after common delimiters (-, –, (, ,).
+    Returns list of (name, line_index) tuples.
+    """
+    results = []
+    lines = content.splitlines()
+
+    # Pattern for list items: dash, asterisk, or number followed by period
+    list_pattern = re.compile(r'^\s*(?:[-*]|\d+\.)\s+(.+)$')
+
+    for i, line in enumerate(lines):
+        match = list_pattern.match(line)
+        if not match:
+            continue
+
+        item_text = match.group(1).strip()
+
+        # Extract business name before common delimiters
+        # Split on: " - ", " – ", "(", ","
+        name = re.split(r'\s+[-–]\s+|\s*\(|,\s*(?=[a-z])', item_text, maxsplit=1)[0].strip()
+
+        # Skip if too short
+        if len(name) < 3:
+            continue
+
+        # Skip if it looks like an article title (too long)
+        if len(name) > 60:
+            continue
+
+        results.append((name, i))
+
+    return results
+
+
 def _extract_address_line(lines: list[str]) -> str | None:
     """Pick the best address-like line from a list of candidate lines.
 
