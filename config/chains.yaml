@@ -45,3 +45,13 @@ chains:
   - "Denny's"
   - Crumbl
   - Sprouts Farmers Market
+  # Additional chains from news articles
+  - Potbelly
+  - "Velvet Taco"
+  - "Nothing Bundt Cakes"
+  - "Raising Cane's"
+  - "Portillo's"
+  - "First Watch"
+  - "Dutch Bros"
+  - "Jeni's"
+  - Snooze

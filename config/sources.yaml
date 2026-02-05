@@ -58,6 +58,10 @@ extractable_domains:
   - styleblueprint.com
   - nashtoday.6amcity.com
   - goodnightstay.com
+  # Regional news sites
+  - wilcosun.com
+  - newschannel5.com
+  - wtvf.com
   # Business listings
   - yelp.com
   - gallatintn.gov
