@@ -297,6 +297,11 @@ def _extract_list_items(content: str) -> list[tuple[str, int]]:
 
 # Patterns for extracting business names from sentences
 _SENTENCE_PATTERNS = [
+    # Quoted names: "X" is opening, "X" will open, etc.
+    re.compile(r'["\u201c]([^"\u201d]+)["\u201d]\s+is\s+opening\b', re.IGNORECASE),
+    re.compile(r'["\u201c]([^"\u201d]+)["\u201d]\s+will\s+open\b', re.IGNORECASE),
+    re.compile(r'["\u201c]([^"\u201d]+)["\u201d]\s+opens\b', re.IGNORECASE),
+    re.compile(r'["\u201c]([^"\u201d]+)["\u201d]\s+launch(?:es|ed)?\b', re.IGNORECASE),
     # "X is opening" - captures text before "is opening"
     re.compile(r'\b([A-Z][A-Za-z\s&\']+?)\s+is\s+opening\b', re.IGNORECASE),
     # "X will open" - captures text before "will open"
@@ -370,40 +375,67 @@ def _extract_address_line(lines: list[str]) -> str | None:
     return None
 
 
-def parse_news_article(content: str, source_url: str, county: str | None = None) -> list[dict]:
-    """Parse news articles that use ## headings for business names.
+def _build_records_from_names(
+    names_with_lines: list[tuple[str, int]],
+    lines: list[str],
+    source_url: str,
+    county: str | None,
+    source_type: str = "news_article",
+) -> list[dict]:
+    """Build BusinessRecord dicts from extracted names.
 
-    Each ## section is treated as one business.  Address lines are detected
-    by italic-markdown markers (*) or by a leading street number.  City is
-    extracted from the address when present, or looked up against a known
-    list of Nashville-area cities.
-
-    If no ## headings are found at all, a fallback heuristic scans plain
-    lines for words like "opening", "new", "launches", etc. and attempts to
-    pull a business name from those sentences.
+    For each name, attempts to find an address in nearby lines.
     """
+    records = []
+
+    for name, line_idx in names_with_lines:
+        rec = _empty_record(source_url, source_type, county)
+        rec["business_name"] = name
+
+        # Look for address in current line and next 2 lines
+        search_lines = lines[line_idx:line_idx + 3]
+        address_line = _extract_address_line(search_lines)
+
+        if address_line:
+            street, city, zip_code = _split_address_parts(address_line)
+            rec["address"] = street if street else address_line
+            if city:
+                rec["city"] = city
+            if zip_code:
+                rec["zip_code"] = zip_code
+
+        # If city still not resolved, scan nearby lines for city mention
+        if not rec["city"]:
+            nearby_text = "\n".join(lines[max(0, line_idx - 1):line_idx + 3])
+            rec["city"] = _find_tn_city(nearby_text)
+
+        if rec["address"] or rec["city"]:
+            rec["state"] = "TN"
+
+        records.append(rec)
+
+    return records
+
+
+def _parse_heading_sections(content: str, source_url: str, county: str | None) -> list[dict]:
+    """Extract businesses from ## heading sections (original logic)."""
     sections = re.split(r"(?=^## )", content, flags=re.MULTILINE)
 
     records: list[dict] = []
-    found_heading = False
 
     for section in sections:
         lines = section.splitlines()
         if not lines:
             continue
 
-        # Detect whether this section starts with a ## heading
         first_line = lines[0].strip()
         if not first_line.startswith("## "):
-            # This is either the preamble (before any ##) or a non-heading block
             continue
 
-        found_heading = True
         business_name = first_line.lstrip("# ").strip()
         if not business_name:
             continue
 
-        # Gather candidate address lines (italic or street-number lines)
         body_lines = lines[1:]
         address_line = _extract_address_line(body_lines)
 
@@ -418,7 +450,6 @@ def parse_news_article(content: str, source_url: str, county: str | None = None)
             if zip_code:
                 rec["zip_code"] = zip_code
 
-        # If city still not resolved, scan the whole section text
         if not rec["city"]:
             rec["city"] = _find_tn_city(section)
 
@@ -427,40 +458,43 @@ def parse_news_article(content: str, source_url: str, county: str | None = None)
 
         records.append(rec)
 
-    # ---------------------------------------------------------------------------
-    # Fallback: no ## headings found — scan for announcement-style lines
-    # ---------------------------------------------------------------------------
-    if not found_heading:
-        announce_keywords = re.compile(
-            r"\b(opening|opens|new|launch(?:es|ed)?|now open|grand opening|debut(?:s|ed)?)\b",
-            re.IGNORECASE,
-        )
-        for line in content.splitlines():
-            stripped = line.strip()
-            if not stripped or announce_keywords.search(stripped) is None:
-                continue
-
-            # Heuristic: business name is likely the first quoted string, or
-            # everything before the keyword.
-            quoted = re.search(r'["\u201c]([^"\u201d]+)["\u201d]', stripped)
-            if quoted:
-                biz_name = quoted.group(1).strip()
-            else:
-                # Take text before the first announcement keyword
-                match = announce_keywords.search(stripped)
-                biz_name = stripped[: match.start()].strip().rstrip(",.:;-–—").strip()
-
-            if not biz_name:
-                continue
-
-            rec = _empty_record(source_url, "news_article", county)
-            rec["business_name"] = biz_name
-            rec["city"] = _find_tn_city(stripped)
-            if rec["city"]:
-                rec["state"] = "TN"
-            records.append(rec)
-
     return records
+
+
+def parse_news_article(content: str, source_url: str, county: str | None = None) -> list[dict]:
+    """Parse news articles to extract multiple business leads.
+
+    Uses extraction strategies in priority order:
+    1. ## Heading sections (most reliable)
+    2. **Bold** or __bold__ names
+    3. Bullet/numbered list items
+    4. Sentence patterns like "X is opening" (fallback)
+
+    First strategy to yield results wins to prevent double-counting.
+    """
+    lines = content.splitlines()
+
+    # Strategy 1: ## Heading sections (existing logic)
+    records = _parse_heading_sections(content, source_url, county)
+    if records:
+        return records
+
+    # Strategy 2: Bold names
+    bold_names = _extract_bold_names(content)
+    if bold_names:
+        return _build_records_from_names(bold_names, lines, source_url, county)
+
+    # Strategy 3: List items
+    list_names = _extract_list_items(content)
+    if list_names:
+        return _build_records_from_names(list_names, lines, source_url, county)
+
+    # Strategy 4: Sentence patterns (fallback)
+    sentence_names = _extract_from_sentences(content)
+    if sentence_names:
+        return _build_records_from_names(sentence_names, lines, source_url, county)
+
+    return []
 
 
 # ---------------------------------------------------------------------------
