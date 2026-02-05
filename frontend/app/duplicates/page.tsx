@@ -77,7 +77,6 @@ export default function DuplicatesPage() {
       const keepId = keepLead === "a" ? selectedSuggestion.lead_a.id : selectedSuggestion.lead_b.id;
       const mergeId = keepLead === "a" ? selectedSuggestion.lead_b.id : selectedSuggestion.lead_a.id;
 
-      // Build field choices from selections
       const fieldChoices: Record<string, string> = {};
       for (const field of MERGEABLE_FIELDS) {
         const choice = mergeChoices[field.key];
@@ -112,12 +111,10 @@ export default function DuplicatesPage() {
   const openMergeDialog = (suggestion: DuplicateSuggestion) => {
     setSelectedSuggestion(suggestion);
     setKeepLead("a");
-    // Initialize choices with higher score lead's values
     const defaultChoices: Record<string, "a" | "b"> = {};
     for (const field of MERGEABLE_FIELDS) {
       const valueA = suggestion.lead_a[field.key as keyof Lead];
       const valueB = suggestion.lead_b[field.key as keyof Lead];
-      // Default to the one with a value, or 'a' if both have values
       if (valueA && !valueB) defaultChoices[field.key] = "a";
       else if (!valueA && valueB) defaultChoices[field.key] = "b";
       else defaultChoices[field.key] = suggestion.lead_a.pos_score >= suggestion.lead_b.pos_score ? "a" : "b";
@@ -129,7 +126,7 @@ export default function DuplicatesPage() {
     return (
       <AppShell>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </AppShell>
     );
@@ -142,8 +139,8 @@ export default function DuplicatesPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Duplicate Detection</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-3xl font-bold tracking-tight">Duplicate Detection</h1>
+            <p className="text-muted-foreground mt-1">
               Review and merge potential duplicate leads
             </p>
           </div>
@@ -170,7 +167,7 @@ export default function DuplicatesPage() {
 
         {suggestions.length === 0 ? (
           <Card>
-            <CardContent className="py-12 text-center">
+            <CardContent className="py-16 text-center">
               <p className="text-muted-foreground">No duplicate suggestions to review.</p>
               <p className="text-sm text-muted-foreground mt-2">
                 Click &quot;Scan for Duplicates&quot; to find potential matches.
@@ -181,12 +178,15 @@ export default function DuplicatesPage() {
           <div className="space-y-4">
             {suggestions.map((suggestion) => (
               <Card key={suggestion.id}>
-                <CardHeader className="pb-2">
+                <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">
-                      Potential Match ({Math.round(suggestion.similarity_score * 100)}% similar)
+                    <CardTitle className="text-base flex items-center gap-3">
+                      <span className="text-gradient font-bold">
+                        {Math.round(suggestion.similarity_score * 100)}%
+                      </span>
+                      <span className="text-muted-foreground font-normal">match</span>
                     </CardTitle>
-                    <Badge variant="outline">
+                    <Badge variant="outline" className="text-xs">
                       {new Date(suggestion.created_at).toLocaleDateString()}
                     </Badge>
                   </div>
@@ -218,7 +218,7 @@ export default function DuplicatesPage() {
 
         {/* Merge Dialog */}
         <Dialog open={!!selectedSuggestion} onOpenChange={(open) => !open && setSelectedSuggestion(null)}>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto glass-strong custom-scrollbar">
             <DialogHeader>
               <DialogTitle>Merge Leads</DialogTitle>
               <DialogDescription>
@@ -265,13 +265,13 @@ export default function DuplicatesPage() {
 
                       return (
                         <div key={field.key} className="grid grid-cols-3 gap-2 items-center">
-                          <Label className="font-medium">{field.label}</Label>
+                          <Label className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">{field.label}</Label>
                           <button
                             onClick={() => setMergeChoices((prev) => ({ ...prev, [field.key]: "a" }))}
-                            className={`p-2 text-left rounded border ${
+                            className={`p-2 text-left rounded-lg transition-all ${
                               mergeChoices[field.key] === "a"
-                                ? "border-primary bg-primary/10"
-                                : "border-muted hover:border-muted-foreground"
+                                ? "glass ring-2 ring-primary/50"
+                                : "glass-subtle hover:bg-accent/5"
                             }`}
                           >
                             <span className="text-sm">{valueA || "—"}</span>
@@ -281,10 +281,10 @@ export default function DuplicatesPage() {
                           </button>
                           <button
                             onClick={() => setMergeChoices((prev) => ({ ...prev, [field.key]: "b" }))}
-                            className={`p-2 text-left rounded border ${
+                            className={`p-2 text-left rounded-lg transition-all ${
                               mergeChoices[field.key] === "b"
-                                ? "border-primary bg-primary/10"
-                                : "border-muted hover:border-muted-foreground"
+                                ? "glass ring-2 ring-primary/50"
+                                : "glass-subtle hover:bg-accent/5"
                             }`}
                           >
                             <span className="text-sm">{valueB || "—"}</span>
@@ -327,9 +327,9 @@ export default function DuplicatesPage() {
 
 function LeadCard({ lead, label }: { lead: Lead; label: string }) {
   return (
-    <div className="p-4 bg-muted rounded-lg">
+    <div className="p-4 glass-subtle rounded-lg">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-muted-foreground">{label}</span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
         <ScoreBadge lead={lead} />
       </div>
       <h3 className="font-semibold">{lead.business_name}</h3>
@@ -338,7 +338,7 @@ function LeadCard({ lead, label }: { lead: Lead; label: string }) {
         <p><span className="text-muted-foreground">Address:</span> {lead.address || "—"}</p>
         <p><span className="text-muted-foreground">City:</span> {lead.city || "—"}</p>
         <p><span className="text-muted-foreground">County:</span> {lead.county || "—"}</p>
-        <p><span className="text-muted-foreground">Stage:</span> <Badge variant="outline">{lead.stage}</Badge></p>
+        <p><span className="text-muted-foreground">Stage:</span> <Badge variant="secondary" className="text-xs">{lead.stage}</Badge></p>
       </div>
     </div>
   );

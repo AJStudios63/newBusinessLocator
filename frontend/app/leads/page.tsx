@@ -27,7 +27,6 @@ function LeadsPageContent() {
   const router = useRouter();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
-  // Initialize filters from URL params
   const [filters, setFilters] = useState<LeadFilters>(() => {
     const initial: LeadFilters = { page: 1, pageSize: 50 };
     const stage = searchParams.get("stage");
@@ -49,7 +48,6 @@ function LeadsPageContent() {
     return initial;
   });
 
-  // Sync URL when filters change
   useEffect(() => {
     const params = new URLSearchParams();
     if (filters.stage) params.set("stage", filters.stage);
@@ -63,13 +61,11 @@ function LeadsPageContent() {
     const queryString = params.toString();
     const newUrl = queryString ? `/leads?${queryString}` : "/leads";
 
-    // Only update URL if it's different (avoid infinite loop)
     if (window.location.pathname + window.location.search !== newUrl) {
       router.replace(newUrl, { scroll: false });
     }
   }, [filters, router]);
 
-  // Reset to page 1 when filters change (except page/pageSize)
   const handleFilterChange = (newFilters: LeadFilters) => {
     const filtersChanged =
       newFilters.stage !== filters.stage ||
@@ -123,7 +119,12 @@ function LeadsPageContent() {
     <AppShell>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Leads</h1>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Leads</h1>
+            <p className="text-muted-foreground mt-1">
+              {total} total leads in your pipeline
+            </p>
+          </div>
           {hasActiveFilters && (
             <Button variant="outline" size="sm" onClick={clearFilters}>
               <X className="mr-2 h-4 w-4" />
@@ -146,7 +147,7 @@ function LeadsPageContent() {
 
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin" />
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
           <>
@@ -155,19 +156,19 @@ function LeadsPageContent() {
               onRowClick={setSelectedLead}
             />
 
-            {/* Pagination Controls */}
-            <div className="flex items-center justify-between border-t pt-4">
+            {/* Pagination */}
+            <div className="flex items-center justify-between glass rounded-lg px-4 py-3">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span>
-                  Showing {total > 0 ? ((currentPage - 1) * pageSize) + 1 : 0} - {Math.min(currentPage * pageSize, total)} of {total} leads
+                  {total > 0 ? ((currentPage - 1) * pageSize) + 1 : 0}–{Math.min(currentPage * pageSize, total)} of {total}
                 </span>
-                <span className="mx-2">|</span>
-                <span>Rows per page:</span>
+                <span className="text-border">|</span>
+                <span>Per page:</span>
                 <Select
                   value={pageSize.toString()}
                   onValueChange={(v) => handlePageSizeChange(parseInt(v))}
                 >
-                  <SelectTrigger className="w-[70px] h-8">
+                  <SelectTrigger className="w-[65px] h-7 text-xs glass-subtle">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -182,47 +183,47 @@ function LeadsPageContent() {
 
               <div className="flex items-center gap-1">
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-7 w-7"
                   onClick={() => goToPage(1)}
                   disabled={currentPage === 1}
                   title="First page"
                 >
-                  <ChevronsLeft className="h-4 w-4" />
+                  <ChevronsLeft className="h-3.5 w-3.5" />
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-7 w-7"
                   onClick={() => goToPage(currentPage - 1)}
                   disabled={currentPage === 1}
                   title="Previous page"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-3.5 w-3.5" />
                 </Button>
-                <span className="px-3 text-sm">
-                  Page {currentPage} of {totalPages}
+                <span className="px-3 text-sm font-medium">
+                  {currentPage} / {totalPages}
                 </span>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-7 w-7"
                   onClick={() => goToPage(currentPage + 1)}
                   disabled={currentPage >= totalPages}
                   title="Next page"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-7 w-7"
                   onClick={() => goToPage(totalPages)}
                   disabled={currentPage >= totalPages}
                   title="Last page"
                 >
-                  <ChevronsRight className="h-4 w-4" />
+                  <ChevronsRight className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
@@ -245,7 +246,7 @@ export default function LeadsPage() {
       fallback={
         <AppShell>
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin" />
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         </AppShell>
       }

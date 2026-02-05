@@ -8,7 +8,7 @@ import { getStats, triggerPipelineRun, getPipelineStatus, getDuplicatesCount } f
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Play, Copy, ArrowRight } from "lucide-react";
+import { Loader2, Play, Copy, ArrowRight, Clock, Zap, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
 export default function DashboardPage() {
@@ -21,7 +21,6 @@ export default function DashboardPage() {
     queryKey: ["pipelineStatus"],
     queryFn: getPipelineStatus,
     refetchInterval: (query) => {
-      // Poll while pipeline is running
       return query.state.data?.running ? 2000 : false;
     },
   });
@@ -45,7 +44,7 @@ export default function DashboardPage() {
     return (
       <AppShell>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </AppShell>
     );
@@ -53,12 +52,19 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
-      <div className="space-y-6">
+      <div className="space-y-8">
+        {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+            <p className="text-muted-foreground mt-1">
+              Monitor your lead pipeline and business intelligence
+            </p>
+          </div>
           <Button
             onClick={handleRunPipeline}
             disabled={pipelineStatus?.running}
+            size="lg"
           >
             {pipelineStatus?.running ? (
               <>
@@ -74,34 +80,39 @@ export default function DashboardPage() {
           </Button>
         </div>
 
+        {/* Stats */}
         <StatsCards stats={stats} />
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* Charts */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <TypePieChart data={stats.by_type} />
           <CountyBarChart data={stats.by_county} />
           <StageBarChart data={stats.by_stage} />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        {/* Bottom row: Alerts & Info */}
+        <div className="grid gap-6 md:grid-cols-2">
           {duplicatesData && duplicatesData.count > 0 && (
-            <Card className="border-orange-200 bg-orange-50 dark:border-orange-900 dark:bg-orange-950">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
-                  <Copy className="h-5 w-5" />
+            <Card className="border-warning/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <div className="h-8 w-8 rounded-lg bg-warning/15 flex items-center justify-center">
+                    <Copy className="h-4 w-4 text-warning" />
+                  </div>
                   Potential Duplicates
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-orange-700 dark:text-orange-300">
+                <p className="text-3xl font-bold tracking-tight">
                   {duplicatesData.count}
                 </p>
-                <p className="text-sm text-orange-600 dark:text-orange-400 mb-3">
-                  leads to review
+                <p className="text-sm text-muted-foreground mb-4">
+                  leads to review and merge
                 </p>
                 <Link href="/duplicates">
-                  <Button variant="outline" size="sm" className="border-orange-300 hover:bg-orange-100 dark:border-orange-800 dark:hover:bg-orange-900">
+                  <Button variant="outline" size="sm">
                     Review Now
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                    <ArrowRight className="ml-2 h-3.5 w-3.5" />
                   </Button>
                 </Link>
               </CardContent>
@@ -110,27 +121,39 @@ export default function DashboardPage() {
 
           {stats.last_run && (
             <Card>
-              <CardHeader>
-                <CardTitle>Last Pipeline Run</CardTitle>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <div className="h-8 w-8 rounded-lg bg-primary/15 flex items-center justify-center">
+                    <Clock className="h-4 w-4 text-primary" />
+                  </div>
+                  Last Pipeline Run
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-muted-foreground">Started</p>
+                    <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Started</p>
                     <p className="font-medium">
                       {new Date(stats.last_run.run_started_at).toLocaleString()}
                     </p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Status</p>
-                    <p className="font-medium capitalize">{stats.last_run.status}</p>
+                    <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Status</p>
+                    <p className="font-medium capitalize flex items-center gap-1.5">
+                      {stats.last_run.status === "completed" ? (
+                        <Zap className="h-3.5 w-3.5 text-success" />
+                      ) : (
+                        <TrendingUp className="h-3.5 w-3.5 text-warning" />
+                      )}
+                      {stats.last_run.status}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Found</p>
+                    <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Found</p>
                     <p className="font-medium">{stats.last_run.leads_found}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">New</p>
+                    <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">New</p>
                     <p className="font-medium">{stats.last_run.leads_new}</p>
                   </div>
                 </div>

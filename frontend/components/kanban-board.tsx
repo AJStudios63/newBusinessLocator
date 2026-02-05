@@ -21,7 +21,6 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { KanbanCard } from "./kanban-card";
-import { Card, CardContent } from "@/components/ui/card";
 import { updateLeadStage } from "@/lib/api";
 import { STAGES, type Lead, type Stage, type KanbanData } from "@/lib/types";
 
@@ -37,13 +36,17 @@ function DroppableColumn({ stage, leads, onCardClick }: DroppableColumnProps) {
   return (
     <div
       ref={setNodeRef}
-      className={`flex-shrink-0 w-72 rounded-lg p-3 transition-colors ${
-        isOver ? "bg-primary/10 ring-2 ring-primary" : "bg-muted/50"
+      className={`flex-shrink-0 w-72 rounded-xl p-3 transition-all duration-200 ${
+        isOver
+          ? "glass ring-2 ring-primary/50 shadow-lg shadow-primary/10"
+          : "glass-subtle"
       }`}
     >
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 px-1">
         <h3 className="font-semibold text-sm">{stage}</h3>
-        <span className="text-xs text-muted-foreground">{leads.length}</span>
+        <span className="text-xs text-muted-foreground glass-subtle rounded-full px-2 py-0.5">
+          {leads.length}
+        </span>
       </div>
       <SortableContext
         id={stage}
@@ -92,22 +95,16 @@ export function KanbanBoard({ data, onCardClick }: KanbanBoardProps) {
     },
   });
 
-  // Custom collision detection that prefers droppable columns over sortable items
   const collisionDetection: CollisionDetection = (args) => {
-    // First check for pointer within droppables (columns)
     const pointerCollisions = pointerWithin(args);
-
-    // Filter to only column droppables (string IDs that match stage names)
     const columnCollisions = pointerCollisions.filter(
       (collision) => typeof collision.id === "string" && STAGES.includes(collision.id as Stage)
     );
 
-    // If we're over a column, use that
     if (columnCollisions.length > 0) {
       return columnCollisions;
     }
 
-    // Otherwise fall back to rect intersection for cards
     return rectIntersection(args);
   };
 
@@ -124,14 +121,11 @@ export function KanbanBoard({ data, onCardClick }: KanbanBoardProps) {
     const leadId = active.id as number;
     const overId = over.id;
 
-    // Determine target stage - could be a stage name (string) or a lead id (number)
     let targetStage: Stage | null = null;
 
     if (typeof overId === "string" && STAGES.includes(overId as Stage)) {
-      // Dropped directly on a column
       targetStage = overId as Stage;
     } else {
-      // Dropped on another card - find which column that card is in
       for (const stage of STAGES) {
         if (data.columns[stage].some((l) => l.id === overId)) {
           targetStage = stage;
@@ -142,7 +136,6 @@ export function KanbanBoard({ data, onCardClick }: KanbanBoardProps) {
 
     if (!targetStage) return;
 
-    // Find current stage of the lead being dragged
     let currentStage: Stage | null = null;
     for (const stage of STAGES) {
       if (data.columns[stage].some((l) => l.id === leadId)) {
@@ -167,7 +160,7 @@ export function KanbanBoard({ data, onCardClick }: KanbanBoardProps) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
         {STAGES.map((stage) => (
           <DroppableColumn
             key={stage}
@@ -179,11 +172,9 @@ export function KanbanBoard({ data, onCardClick }: KanbanBoardProps) {
       </div>
       <DragOverlay>
         {activeLead && (
-          <Card className="w-72 opacity-80">
-            <CardContent className="p-3">
-              <p className="font-medium text-sm">{activeLead.business_name}</p>
-            </CardContent>
-          </Card>
+          <div className="w-72 glass rounded-xl p-3 shadow-xl opacity-90">
+            <p className="font-medium text-sm">{activeLead.business_name}</p>
+          </div>
         )}
       </DragOverlay>
     </DndContext>

@@ -28,7 +28,6 @@ export function LeadFiltersBar({ filters, onFilterChange, counties }: LeadFilter
     filtersRef.current = filters;
   }, [filters]);
 
-  // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
       const currentQuery = filtersRef.current.q || "";
@@ -40,7 +39,6 @@ export function LeadFiltersBar({ filters, onFilterChange, counties }: LeadFilter
     return () => clearTimeout(timer);
   }, [searchInput, onFilterChange]);
 
-  // Sync searchInput when filters.q changes externally
   useEffect(() => {
     if (filters.q !== searchInput) {
       setSearchInput(filters.q || "");
@@ -53,21 +51,21 @@ export function LeadFiltersBar({ filters, onFilterChange, counties }: LeadFilter
   }, [filters, onFilterChange]);
 
   return (
-    <div className="flex flex-wrap gap-4 items-center">
-      {/* Search box */}
+    <div className="flex flex-wrap gap-3 items-center">
+      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           type="text"
           placeholder="Search businesses..."
-          className="w-[220px] pl-9 pr-8"
+          className="w-[220px] pl-9 pr-8 glass-subtle"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
         />
         {searchInput && (
           <button
             onClick={clearSearch}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -80,7 +78,7 @@ export function LeadFiltersBar({ filters, onFilterChange, counties }: LeadFilter
           onFilterChange({ ...filters, stage: value === "all" ? undefined : value })
         }
       >
-        <SelectTrigger className="w-[150px]">
+        <SelectTrigger className="w-[150px] glass-subtle">
           <SelectValue placeholder="All Stages" />
         </SelectTrigger>
         <SelectContent>
@@ -99,7 +97,7 @@ export function LeadFiltersBar({ filters, onFilterChange, counties }: LeadFilter
           onFilterChange({ ...filters, county: value === "all" ? undefined : value })
         }
       >
-        <SelectTrigger className="w-[150px]">
+        <SelectTrigger className="w-[150px] glass-subtle">
           <SelectValue placeholder="All Counties" />
         </SelectTrigger>
         <SelectContent>
@@ -117,7 +115,7 @@ export function LeadFiltersBar({ filters, onFilterChange, counties }: LeadFilter
         <Input
           type="number"
           placeholder="Min"
-          className="w-[80px]"
+          className="w-[80px] glass-subtle"
           min={0}
           max={100}
           value={filters.minScore ?? ""}
@@ -128,11 +126,11 @@ export function LeadFiltersBar({ filters, onFilterChange, counties }: LeadFilter
             })
           }
         />
-        <span className="text-muted-foreground">-</span>
+        <span className="text-muted-foreground text-xs">to</span>
         <Input
           type="number"
           placeholder="Max"
-          className="w-[80px]"
+          className="w-[80px] glass-subtle"
           min={0}
           max={100}
           value={filters.maxScore ?? ""}
@@ -143,13 +141,13 @@ export function LeadFiltersBar({ filters, onFilterChange, counties }: LeadFilter
             })
           }
         />
-        <span className="text-sm text-muted-foreground">Score</span>
+        <span className="text-xs text-muted-foreground">Score</span>
       </div>
 
       <Button variant="outline" asChild>
         <a href={getExportUrl(filters)} download>
           <Download className="mr-2 h-4 w-4" />
-          Export CSV
+          Export
         </a>
       </Button>
     </div>

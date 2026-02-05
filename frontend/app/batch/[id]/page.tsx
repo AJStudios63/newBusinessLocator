@@ -88,7 +88,7 @@ export default function BatchPage({ params }: BatchPageProps) {
     return (
       <AppShell>
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </AppShell>
     );
@@ -102,7 +102,7 @@ export default function BatchPage({ params }: BatchPageProps) {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
-          <div className="text-center py-8">
+          <div className="text-center py-12">
             <p className="text-muted-foreground">Batch not found or no leads in this batch.</p>
           </div>
         </div>
@@ -122,33 +122,33 @@ export default function BatchPage({ params }: BatchPageProps) {
             Back
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Batch View</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Batch View</h1>
             <p className="text-sm text-muted-foreground">
               {data.count} leads extracted together
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 p-4 bg-muted rounded-md">
+        <div className="flex flex-wrap items-center gap-4 p-4 glass rounded-xl">
           <div className="flex-1 space-y-1">
             <p className="text-sm">
-              <span className="text-muted-foreground">Batch ID:</span>{" "}
-              <code className="text-xs">{id}</code>
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">Batch ID:</span>{" "}
+              <code className="text-xs font-mono text-primary/70">{id}</code>
             </p>
             {sourceType && (
               <p className="text-sm">
-                <span className="text-muted-foreground">Source Type:</span>{" "}
-                <Badge variant="outline">{sourceType}</Badge>
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">Source Type:</span>{" "}
+                <Badge variant="outline" className="text-xs">{sourceType}</Badge>
               </p>
             )}
             {sourceUrl && (
               <p className="text-sm">
-                <span className="text-muted-foreground">Source URL:</span>{" "}
+                <span className="text-xs uppercase tracking-wider text-muted-foreground">Source URL:</span>{" "}
                 <a
                   href={sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline break-all"
+                  className="text-primary hover:text-primary/80 hover:underline break-all transition-colors"
                 >
                   {sourceUrl}
                 </a>
@@ -161,7 +161,7 @@ export default function BatchPage({ params }: BatchPageProps) {
               value={bulkStage}
               onValueChange={(v) => setBulkStage(v as Stage)}
             >
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-[150px] glass-subtle">
                 <SelectValue placeholder="Move all to..." />
               </SelectTrigger>
               <SelectContent>
@@ -200,7 +200,7 @@ export default function BatchPage({ params }: BatchPageProps) {
         />
 
         <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <DialogContent>
+          <DialogContent className="glass-strong">
             <DialogHeader>
               <DialogTitle>Delete Entire Batch</DialogTitle>
               <DialogDescription>

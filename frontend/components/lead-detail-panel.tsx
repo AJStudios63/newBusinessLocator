@@ -40,14 +40,12 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
   const [batchCount, setBatchCount] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
-  // Reset edit state when lead changes
   useEffect(() => {
     if (lead) {
       setIsEditing(false);
       setEditedFields({});
       setNewStage(null);
       setNote("");
-      // Fetch batch count if lead has a batch_id
       if (lead.source_batch_id) {
         getLeadsByBatch(lead.source_batch_id).then((data) => {
           setBatchCount(data.count > 1 ? data.count - 1 : null);
@@ -112,17 +110,17 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-[500px] sm:max-w-[500px] overflow-y-auto">
+      <SheetContent className="w-[500px] sm:max-w-[500px] overflow-y-auto custom-scrollbar border-l border-border/50 bg-background/80 backdrop-blur-xl">
         <SheetHeader>
           <div className="flex items-center justify-between">
             {isEditing ? (
               <Input
                 value={getFieldValue("business_name")}
                 onChange={(e) => handleFieldChange("business_name", e.target.value)}
-                className="text-lg font-semibold"
+                className="text-lg font-semibold glass-subtle"
               />
             ) : (
-              <SheetTitle>{lead.business_name}</SheetTitle>
+              <SheetTitle className="text-lg">{lead.business_name}</SheetTitle>
             )}
             {!isEditing && (
               <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}>
@@ -139,7 +137,7 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
                 value={getFieldValue("business_type") as string || "other"}
                 onValueChange={(v) => handleFieldChange("business_type", v)}
               >
-                <SelectTrigger className="w-[130px]">
+                <SelectTrigger className="w-[130px] glass-subtle">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -153,11 +151,11 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
             ) : (
               <Badge variant="outline">{lead.business_type || "other"}</Badge>
             )}
-            <Badge>{lead.stage}</Badge>
+            <Badge variant="secondary">{lead.stage}</Badge>
             <ScoreBadge lead={lead} />
             {batchCount !== null && lead.source_batch_id && (
               <Link href={`/batch/${lead.source_batch_id}`} onClick={onClose}>
-                <Badge variant="outline" className="gap-1 cursor-pointer hover:bg-muted">
+                <Badge variant="outline" className="gap-1 cursor-pointer hover:bg-accent/10 transition-colors">
                   <Users className="h-3 w-3" />
                   +{batchCount} in batch
                   <ExternalLink className="h-3 w-3" />
@@ -168,66 +166,69 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
 
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <p className="text-muted-foreground mb-1">Address</p>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1.5">Address</p>
               {isEditing ? (
                 <Input
                   value={getFieldValue("address")}
                   onChange={(e) => handleFieldChange("address", e.target.value)}
                   placeholder="Address"
+                  className="glass-subtle"
                 />
               ) : (
-                <p>{lead.address || "—"}</p>
+                <p className="font-medium">{lead.address || "—"}</p>
               )}
             </div>
             <div>
-              <p className="text-muted-foreground mb-1">City</p>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1.5">City</p>
               {isEditing ? (
                 <Input
                   value={getFieldValue("city")}
                   onChange={(e) => handleFieldChange("city", e.target.value)}
                   placeholder="City"
+                  className="glass-subtle"
                 />
               ) : (
-                <p>{lead.city || "—"}</p>
+                <p className="font-medium">{lead.city || "—"}</p>
               )}
             </div>
             <div>
-              <p className="text-muted-foreground mb-1">County</p>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1.5">County</p>
               {isEditing ? (
                 <Input
                   value={getFieldValue("county")}
                   onChange={(e) => handleFieldChange("county", e.target.value)}
                   placeholder="County"
+                  className="glass-subtle"
                 />
               ) : (
-                <p>{lead.county || "—"}</p>
+                <p className="font-medium">{lead.county || "—"}</p>
               )}
             </div>
             <div>
-              <p className="text-muted-foreground mb-1">ZIP</p>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1.5">ZIP</p>
               {isEditing ? (
                 <Input
                   value={getFieldValue("zip_code")}
                   onChange={(e) => handleFieldChange("zip_code", e.target.value)}
                   placeholder="ZIP Code"
+                  className="glass-subtle"
                 />
               ) : (
-                <p>{lead.zip_code || "—"}</p>
+                <p className="font-medium">{lead.zip_code || "—"}</p>
               )}
             </div>
             <div>
-              <p className="text-muted-foreground">License Date</p>
-              <p>{lead.license_date || "—"}</p>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1.5">License Date</p>
+              <p className="font-medium">{lead.license_date || "—"}</p>
             </div>
             <div>
-              <p className="text-muted-foreground">Source</p>
-              <p>{lead.source_type || "—"}</p>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1.5">Source</p>
+              <p className="font-medium">{lead.source_type || "—"}</p>
             </div>
           </div>
 
-          {/* Read-only fields */}
-          <div className="text-sm text-muted-foreground space-y-1">
-            <p>Fingerprint: <code className="text-xs">{lead.fingerprint}</code></p>
+          <div className="text-xs text-muted-foreground space-y-1 glass-subtle rounded-lg p-3">
+            <p>Fingerprint: <code className="text-[10px] font-mono text-primary/70">{lead.fingerprint}</code></p>
             <p>Created: {new Date(lead.created_at).toLocaleString()}</p>
             {lead.updated_at !== lead.created_at && (
               <p>Updated: {new Date(lead.updated_at).toLocaleString()}</p>
@@ -236,12 +237,12 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
 
           {lead.source_url && (
             <div>
-              <p className="text-sm text-muted-foreground">Source URL</p>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1.5">Source URL</p>
               <a
                 href={lead.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm text-blue-600 hover:underline break-all"
+                className="text-sm text-primary hover:text-primary/80 hover:underline break-all transition-colors"
               >
                 {lead.source_url}
               </a>
@@ -250,7 +251,7 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
 
           {lead.notes && !isEditing && (
             <div>
-              <p className="text-sm text-muted-foreground">Notes</p>
+              <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1.5">Notes</p>
               <p className="text-sm whitespace-pre-wrap">{lead.notes}</p>
             </div>
           )}
@@ -271,16 +272,16 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
             </div>
           ) : (
             <>
-              <hr />
+              <div className="border-t border-border/50" />
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium">Update Stage</label>
+                  <label className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Update Stage</label>
                   <Select
                     value={newStage || lead.stage}
                     onValueChange={(v) => setNewStage(v as Stage)}
                   >
-                    <SelectTrigger className="mt-1">
+                    <SelectTrigger className="mt-1.5 glass-subtle">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -294,9 +295,9 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium">Add Note</label>
+                  <label className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Add Note</label>
                   <Textarea
-                    className="mt-1"
+                    className="mt-1.5 glass-subtle"
                     placeholder="Enter a note..."
                     value={note}
                     onChange={(e) => setNote(e.target.value)}

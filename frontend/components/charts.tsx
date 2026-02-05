@@ -14,7 +14,23 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
+const COLORS = [
+  "hsl(226, 70%, 60%)",
+  "hsl(173, 58%, 45%)",
+  "hsl(262, 60%, 58%)",
+  "hsl(43, 74%, 56%)",
+  "hsl(340, 75%, 55%)",
+  "hsl(200, 70%, 55%)",
+];
+
+const tooltipStyle = {
+  backgroundColor: "hsl(224, 47%, 12%)",
+  border: "1px solid hsl(223, 30%, 20%)",
+  borderRadius: "8px",
+  fontSize: "12px",
+  color: "hsl(213, 31%, 91%)",
+  boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
+};
 
 interface ChartData {
   name: string;
@@ -44,7 +60,9 @@ export function TypePieChart({ data, onSegmentClick }: TypeChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Leads by Type</CardTitle>
+        <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+          Leads by Type
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={250}>
@@ -58,16 +76,25 @@ export function TypePieChart({ data, onSegmentClick }: TypeChartProps) {
                 `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`
               }
               outerRadius={80}
+              innerRadius={40}
               fill="#8884d8"
               dataKey="value"
               onClick={(_, index) => handleClick(chartData[index])}
               style={{ cursor: "pointer" }}
+              strokeWidth={0}
             >
               {chartData.map((_, index) => (
-                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                <Cell
+                  key={`cell-${index}`}
+                  fill={COLORS[index % COLORS.length]}
+                  className="transition-opacity hover:opacity-80"
+                />
               ))}
             </Pie>
-            <Tooltip />
+            <Tooltip
+              contentStyle={tooltipStyle}
+              itemStyle={{ color: "hsl(213, 31%, 91%)" }}
+            />
           </PieChart>
         </ResponsiveContainer>
         <p className="text-xs text-muted-foreground text-center mt-2">
@@ -96,17 +123,33 @@ export function CountyBarChart({ data, onSegmentClick }: TypeChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Leads by County</CardTitle>
+        <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+          Leads by County
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={250}>
           <BarChart data={chartData}>
-            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-            <YAxis />
-            <Tooltip />
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 11, fill: "hsl(218, 11%, 55%)" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: "hsl(218, 11%, 55%)" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              contentStyle={tooltipStyle}
+              itemStyle={{ color: "hsl(213, 31%, 91%)" }}
+              cursor={{ fill: "hsl(226, 70%, 55%, 0.08)" }}
+            />
             <Bar
               dataKey="value"
-              fill="#0088FE"
+              fill="hsl(226, 70%, 60%)"
+              radius={[6, 6, 0, 0]}
               onClick={(entry) => {
                 if (entry.name) {
                   const value = Array.isArray(entry.value) ? entry.value[0] : entry.value;
@@ -143,17 +186,36 @@ export function StageBarChart({ data, onSegmentClick }: TypeChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Leads by Stage</CardTitle>
+        <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+          Leads by Stage
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={250}>
           <BarChart data={chartData} layout="vertical">
-            <XAxis type="number" />
-            <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={80} />
-            <Tooltip />
+            <XAxis
+              type="number"
+              tick={{ fontSize: 11, fill: "hsl(218, 11%, 55%)" }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              dataKey="name"
+              type="category"
+              tick={{ fontSize: 11, fill: "hsl(218, 11%, 55%)" }}
+              width={80}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              contentStyle={tooltipStyle}
+              itemStyle={{ color: "hsl(213, 31%, 91%)" }}
+              cursor={{ fill: "hsl(173, 58%, 45%, 0.08)" }}
+            />
             <Bar
               dataKey="value"
-              fill="#00C49F"
+              fill="hsl(173, 58%, 45%)"
+              radius={[0, 6, 6, 0]}
               onClick={(entry) => {
                 if (entry.name) {
                   const value = Array.isArray(entry.value) ? entry.value[0] : entry.value;

@@ -50,11 +50,11 @@ export default function PipelinePage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "completed":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <CheckCircle className="h-4 w-4 text-emerald-400" />;
       case "failed":
-        return <XCircle className="h-4 w-4 text-red-500" />;
+        return <XCircle className="h-4 w-4 text-red-400" />;
       case "running":
-        return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+        return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
       default:
         return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
@@ -64,7 +64,12 @@ export default function PipelinePage() {
     <AppShell>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Pipeline</h1>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Pipeline</h1>
+            <p className="text-muted-foreground mt-1">
+              ETL pipeline runs and execution history
+            </p>
+          </div>
           <Button
             onClick={() => mutation.mutate()}
             disabled={status?.running || mutation.isPending}
@@ -86,13 +91,13 @@ export default function PipelinePage() {
 
         {status?.last_result && (
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Latest Result</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Latest Result</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Status</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Status</p>
                   <div className="flex items-center gap-2">
                     {getStatusIcon(status.last_result.status)}
                     <span className="font-medium capitalize">
@@ -101,24 +106,24 @@ export default function PipelinePage() {
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Run ID</p>
-                  <p className="font-medium">{status.last_result.run_id || "—"}</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Run ID</p>
+                  <p className="font-medium font-mono text-sm">{status.last_result.run_id || "—"}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Found</p>
-                  <p className="font-medium">{status.last_result.leads_found ?? "—"}</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Found</p>
+                  <p className="font-medium text-lg">{status.last_result.leads_found ?? "—"}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">New</p>
-                  <p className="font-medium">{status.last_result.leads_new ?? "—"}</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">New</p>
+                  <p className="font-medium text-lg">{status.last_result.leads_new ?? "—"}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Duplicates</p>
-                  <p className="font-medium">{status.last_result.leads_dupes ?? "—"}</p>
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Duplicates</p>
+                  <p className="font-medium text-lg">{status.last_result.leads_dupes ?? "—"}</p>
                 </div>
               </div>
               {status.last_result.error && (
-                <p className="mt-4 text-sm text-red-500">
+                <p className="mt-4 text-sm text-destructive glass-subtle rounded-lg p-3">
                   Error: {status.last_result.error}
                 </p>
               )}
@@ -127,63 +132,66 @@ export default function PipelinePage() {
         )}
 
         <Card>
-          <CardHeader>
-            <CardTitle>Run History</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Run History</CardTitle>
           </CardHeader>
           <CardContent>
             {isLoading ? (
               <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin" />
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Started</TableHead>
-                    <TableHead>Finished</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Found</TableHead>
-                    <TableHead className="text-right">New</TableHead>
-                    <TableHead className="text-right">Dupes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {runs?.runs.map((run) => (
-                    <TableRow key={run.id}>
-                      <TableCell>{run.id}</TableCell>
-                      <TableCell>{formatDate(run.run_started_at)}</TableCell>
-                      <TableCell>{formatDate(run.run_finished_at)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {getStatusIcon(run.status)}
-                          <Badge
-                            variant={
-                              run.status === "completed"
-                                ? "default"
-                                : run.status === "failed"
-                                ? "destructive"
-                                : "secondary"
-                            }
-                          >
-                            {run.status}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">{run.leads_found}</TableCell>
-                      <TableCell className="text-right">{run.leads_new}</TableCell>
-                      <TableCell className="text-right">{run.leads_dupes}</TableCell>
+              <div className="rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-border/50 hover:bg-transparent">
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">ID</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Started</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Finished</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Status</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold text-right">Found</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold text-right">New</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold text-right">Dupes</TableHead>
                     </TableRow>
-                  ))}
-                  {(!runs?.runs || runs.runs.length === 0) && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        No pipeline runs yet
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {runs?.runs.map((run) => (
+                      <TableRow key={run.id} className="border-b border-border/30 hover:bg-accent/5 transition-colors">
+                        <TableCell className="font-mono text-sm">{run.id}</TableCell>
+                        <TableCell className="text-muted-foreground">{formatDate(run.run_started_at)}</TableCell>
+                        <TableCell className="text-muted-foreground">{formatDate(run.run_finished_at)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {getStatusIcon(run.status)}
+                            <Badge
+                              variant={
+                                run.status === "completed"
+                                  ? "success"
+                                  : run.status === "failed"
+                                  ? "destructive"
+                                  : "secondary"
+                              }
+                              className="text-xs"
+                            >
+                              {run.status}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">{run.leads_found}</TableCell>
+                        <TableCell className="text-right font-medium">{run.leads_new}</TableCell>
+                        <TableCell className="text-right font-medium">{run.leads_dupes}</TableCell>
+                      </TableRow>
+                    ))}
+                    {(!runs?.runs || runs.runs.length === 0) && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                          No pipeline runs yet
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

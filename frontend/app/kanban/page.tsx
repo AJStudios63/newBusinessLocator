@@ -20,11 +20,16 @@ export default function KanbanPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Kanban Board</h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Kanban Board</h1>
+          <p className="text-muted-foreground mt-1">
+            Drag leads between stages to update their status
+          </p>
+        </div>
 
         {isLoading || !data ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin" />
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
           <KanbanBoard data={data} onCardClick={setSelectedLead} />

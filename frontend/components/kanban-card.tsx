@@ -2,15 +2,14 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { Lead } from "@/lib/types";
 
 function getScoreColor(score: number): string {
-  if (score >= 70) return "bg-green-100 text-green-700 border-green-300";
-  if (score >= 50) return "bg-yellow-100 text-yellow-700 border-yellow-300";
-  if (score >= 30) return "bg-blue-100 text-blue-700 border-blue-300";
-  return "bg-gray-100 text-gray-600 border-gray-300";
+  if (score >= 70) return "bg-emerald-500/15 text-emerald-400 border-emerald-500/20";
+  if (score >= 50) return "bg-amber-500/15 text-amber-400 border-amber-500/20";
+  if (score >= 30) return "bg-blue-500/15 text-blue-400 border-blue-500/20";
+  return "bg-slate-500/15 text-slate-400 border-slate-500/20";
 }
 
 interface KanbanCardProps {
@@ -35,26 +34,24 @@ export function KanbanCard({ lead, onClick }: KanbanCardProps) {
   };
 
   return (
-    <Card
+    <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
-      className="cursor-grab active:cursor-grabbing"
+      className="glass rounded-lg p-3 space-y-2 cursor-grab active:cursor-grabbing glow-hover transition-all duration-200"
       onClick={onClick}
     >
-      <CardContent className="p-3 space-y-2">
-        <p className="font-medium text-sm line-clamp-2">{lead.business_name}</p>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="outline" className="text-xs">
-            {lead.business_type || "other"}
-          </Badge>
-          <Badge variant="outline" className={`text-xs ${getScoreColor(lead.pos_score)}`}>
-            {lead.pos_score}
-          </Badge>
-        </div>
-        <p className="text-xs text-muted-foreground">{lead.city || "Unknown"}</p>
-      </CardContent>
-    </Card>
+      <p className="font-medium text-sm line-clamp-2">{lead.business_name}</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <Badge variant="outline" className="text-xs">
+          {lead.business_type || "other"}
+        </Badge>
+        <Badge variant="outline" className={`text-xs ${getScoreColor(lead.pos_score)}`}>
+          {lead.pos_score}
+        </Badge>
+      </div>
+      <p className="text-xs text-muted-foreground">{lead.city || "Unknown"}</p>
+    </div>
   );
 }

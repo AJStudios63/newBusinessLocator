@@ -97,15 +97,15 @@ export function LeadTable({ leads, onRowClick }: LeadTableProps) {
   return (
     <div className="space-y-4">
       {selectedIds.size > 0 && (
-        <div className="flex items-center gap-4 p-3 bg-muted rounded-md">
-          <span className="text-sm font-medium">
+        <div className="flex items-center gap-4 p-3 glass rounded-lg animate-slide-in">
+          <span className="text-sm font-medium text-primary">
             {selectedIds.size} selected
           </span>
           <Select
             value={bulkStage}
             onValueChange={(v) => setBulkStage(v as Stage)}
           >
-            <SelectTrigger className="w-[150px]">
+            <SelectTrigger className="w-[150px] glass-subtle">
               <SelectValue placeholder="Move to..." />
             </SelectTrigger>
             <SelectContent>
@@ -142,29 +142,29 @@ export function LeadTable({ leads, onRowClick }: LeadTableProps) {
         </div>
       )}
 
-      <div className="rounded-md border">
+      <div className="rounded-xl glass overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="border-b border-border/50 hover:bg-transparent">
               <TableHead className="w-[40px]">
                 <Checkbox
                   checked={selectedIds.size === leads.length && leads.length > 0}
                   onCheckedChange={toggleAll}
                 />
               </TableHead>
-              <TableHead>Business Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>City</TableHead>
-              <TableHead>County</TableHead>
-              <TableHead className="text-right">Quality</TableHead>
-              <TableHead>Stage</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Business Name</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Type</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">City</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">County</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold text-right">Quality</TableHead>
+              <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Stage</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {leads.map((lead) => (
               <TableRow
                 key={lead.id}
-                className="cursor-pointer hover:bg-muted/50"
+                className="cursor-pointer border-b border-border/30 hover:bg-accent/5 transition-colors"
                 onClick={() => onRowClick(lead)}
               >
                 <TableCell onClick={(e) => e.stopPropagation()}>
@@ -175,21 +175,23 @@ export function LeadTable({ leads, onRowClick }: LeadTableProps) {
                 </TableCell>
                 <TableCell className="font-medium">{lead.business_name}</TableCell>
                 <TableCell>
-                  <Badge variant="outline">{lead.business_type || "other"}</Badge>
+                  <Badge variant="outline" className="text-xs">
+                    {lead.business_type || "other"}
+                  </Badge>
                 </TableCell>
-                <TableCell>{lead.city || "—"}</TableCell>
-                <TableCell>{lead.county || "—"}</TableCell>
+                <TableCell className="text-muted-foreground">{lead.city || "—"}</TableCell>
+                <TableCell className="text-muted-foreground">{lead.county || "—"}</TableCell>
                 <TableCell className="text-right">
                   <ScoreCell score={lead.pos_score} />
                 </TableCell>
                 <TableCell>
-                  <Badge>{lead.stage}</Badge>
+                  <Badge variant="secondary" className="text-xs">{lead.stage}</Badge>
                 </TableCell>
               </TableRow>
             ))}
             {leads.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                   No leads found
                 </TableCell>
               </TableRow>
@@ -198,9 +200,8 @@ export function LeadTable({ leads, onRowClick }: LeadTableProps) {
         </Table>
       </div>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <DialogContent>
+        <DialogContent className="glass-strong">
           <DialogHeader>
             <DialogTitle>Delete Leads</DialogTitle>
             <DialogDescription>

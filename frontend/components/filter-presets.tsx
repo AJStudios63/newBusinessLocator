@@ -114,7 +114,7 @@ export function FilterPresets({ currentFilters, onApplyPreset }: FilterPresetsPr
     <div className="flex items-center gap-2">
       {presets.length > 0 && (
         <Select onValueChange={handleApplyPreset}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-[160px] glass-subtle">
             <SelectValue placeholder="Load preset..." />
           </SelectTrigger>
           <SelectContent>
@@ -150,7 +150,7 @@ export function FilterPresets({ currentFilters, onApplyPreset }: FilterPresetsPr
       </Button>
 
       <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
-        <DialogContent>
+        <DialogContent className="glass-strong">
           <DialogHeader>
             <DialogTitle>Save Filter Preset</DialogTitle>
             <DialogDescription>
