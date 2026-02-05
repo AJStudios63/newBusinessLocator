@@ -211,6 +211,49 @@ def _find_tn_city(text: str) -> str | None:
     return None
 
 
+# Generic words to skip when extracting bold names
+_SKIP_BOLD_WORDS = {
+    "new", "opening", "coming", "soon", "now", "open", "grand",
+    "location", "store", "restaurant", "shop", "cafe", "bar",
+    "the", "a", "an", "and", "or", "at", "in", "to", "for",
+}
+
+
+def _extract_bold_names(content: str) -> list[tuple[str, int]]:
+    """Extract business names from **bold** or __bold__ markdown.
+
+    Returns list of (name, line_index) tuples for address association.
+    Filters out generic words and short strings.
+    """
+    results = []
+    lines = content.splitlines()
+
+    # Pattern for **text** or __text__
+    bold_pattern = re.compile(r'\*\*([^*]+)\*\*|__([^_]+)__')
+
+    for i, line in enumerate(lines):
+        for match in bold_pattern.finditer(line):
+            name = (match.group(1) or match.group(2)).strip()
+
+            # Skip if too short
+            if len(name) < 3:
+                continue
+
+            # Skip if it's a generic word
+            if name.lower() in _SKIP_BOLD_WORDS:
+                continue
+
+            # Skip if it looks like an article title (length heuristic)
+            # Full article title detection would require importing from transform,
+            # which would create a circular import. Using length check as proxy.
+            if len(name) > 60:
+                continue
+
+            results.append((name, i))
+
+    return results
+
+
 def _extract_address_line(lines: list[str]) -> str | None:
     """Pick the best address-like line from a list of candidate lines.
 
