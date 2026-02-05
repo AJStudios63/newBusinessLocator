@@ -20,9 +20,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { bulkUpdateLeads } from "@/lib/api";
+import { bulkUpdateLeads, bulkDeleteLeads } from "@/lib/api";
 import { STAGES, type Lead, type Stage } from "@/lib/types";
+import { Trash2 } from "lucide-react";
 
 interface LeadTableProps {
   leads: Lead[];
@@ -32,19 +41,37 @@ interface LeadTableProps {
 export function LeadTable({ leads, onRowClick }: LeadTableProps) {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkStage, setBulkStage] = useState<Stage | "">("");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const queryClient = useQueryClient();
 
-  const bulkMutation = useMutation({
-    mutationFn: () => bulkUpdateLeads(Array.from(selectedIds), bulkStage as string),
+  const bulkUpdateMutation = useMutation({
+    mutationFn: () => bulkUpdateLeads(Array.from(selectedIds), { stage: bulkStage as string }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       queryClient.invalidateQueries({ queryKey: ["kanban"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
       toast.success(`Updated ${data.updated.length} leads`);
       setSelectedIds(new Set());
       setBulkStage("");
     },
     onError: () => {
       toast.error("Failed to update leads");
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: () => bulkDeleteLeads(Array.from(selectedIds)),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["kanban"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+      toast.success(`Deleted ${data.deleted.length} leads`);
+      setSelectedIds(new Set());
+      setShowDeleteDialog(false);
+    },
+    onError: () => {
+      toast.error("Failed to delete leads");
+      setShowDeleteDialog(false);
     },
   });
 
@@ -90,10 +117,19 @@ export function LeadTable({ leads, onRowClick }: LeadTableProps) {
           </Select>
           <Button
             size="sm"
-            onClick={() => bulkMutation.mutate()}
-            disabled={!bulkStage || bulkMutation.isPending}
+            onClick={() => bulkUpdateMutation.mutate()}
+            disabled={!bulkStage || bulkUpdateMutation.isPending}
           >
             Apply
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => setShowDeleteDialog(true)}
+            disabled={bulkDeleteMutation.isPending}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
           </Button>
           <Button
             size="sm"
@@ -158,6 +194,31 @@ export function LeadTable({ leads, onRowClick }: LeadTableProps) {
           </TableBody>
         </Table>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Leads</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedIds.size} lead{selectedIds.size === 1 ? "" : "s"}?
+              This action can be undone by an administrator.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => bulkDeleteMutation.mutate()}
+              disabled={bulkDeleteMutation.isPending}
+            >
+              {bulkDeleteMutation.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

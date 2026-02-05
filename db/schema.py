@@ -26,11 +26,13 @@ CREATE TABLE IF NOT EXISTS leads (
     stage           TEXT    DEFAULT 'New',
     source_url      TEXT,
     source_type     TEXT,
+    source_batch_id TEXT,
     notes           TEXT,
     created_at      TEXT    DEFAULT (datetime('now')),
     updated_at      TEXT    DEFAULT (datetime('now')),
     contacted_at    TEXT,
-    closed_at       TEXT
+    closed_at       TEXT,
+    deleted_at      TEXT
 );
 """
 
@@ -66,17 +68,67 @@ CREATE TABLE IF NOT EXISTS stage_history (
 );
 """
 
+CREATE_DUPLICATE_SUGGESTIONS = """
+CREATE TABLE IF NOT EXISTS duplicate_suggestions (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    lead_id_a        INTEGER NOT NULL REFERENCES leads(id),
+    lead_id_b        INTEGER NOT NULL REFERENCES leads(id),
+    similarity_score REAL    NOT NULL,
+    status           TEXT    DEFAULT 'pending',
+    created_at       TEXT    DEFAULT (datetime('now')),
+    resolved_at      TEXT,
+    UNIQUE(lead_id_a, lead_id_b)
+);
+"""
+
 # ---------------------------------------------------------------------------
 # CREATE INDEX statements
 # ---------------------------------------------------------------------------
 
 CREATE_INDEXES = """
-CREATE INDEX IF NOT EXISTS idx_leads_fingerprint   ON leads(fingerprint);
-CREATE INDEX IF NOT EXISTS idx_leads_city          ON leads(city);
-CREATE INDEX IF NOT EXISTS idx_leads_county        ON leads(county);
-CREATE INDEX IF NOT EXISTS idx_leads_stage         ON leads(stage);
-CREATE INDEX IF NOT EXISTS idx_leads_pos_score     ON leads(pos_score);
-CREATE INDEX IF NOT EXISTS idx_stage_history_lead  ON stage_history(lead_id);
+CREATE INDEX IF NOT EXISTS idx_leads_fingerprint      ON leads(fingerprint);
+CREATE INDEX IF NOT EXISTS idx_leads_city             ON leads(city);
+CREATE INDEX IF NOT EXISTS idx_leads_county           ON leads(county);
+CREATE INDEX IF NOT EXISTS idx_leads_stage            ON leads(stage);
+CREATE INDEX IF NOT EXISTS idx_leads_pos_score        ON leads(pos_score);
+CREATE INDEX IF NOT EXISTS idx_leads_source_batch_id  ON leads(source_batch_id);
+CREATE INDEX IF NOT EXISTS idx_stage_history_lead     ON stage_history(lead_id);
+CREATE INDEX IF NOT EXISTS idx_dupe_suggestions_status ON duplicate_suggestions(status);
+CREATE INDEX IF NOT EXISTS idx_dupe_suggestions_lead_a ON duplicate_suggestions(lead_id_a);
+CREATE INDEX IF NOT EXISTS idx_dupe_suggestions_lead_b ON duplicate_suggestions(lead_id_b);
+"""
+
+# ---------------------------------------------------------------------------
+# FTS5 Full-Text Search
+# ---------------------------------------------------------------------------
+
+CREATE_FTS = """
+CREATE VIRTUAL TABLE IF NOT EXISTS leads_fts USING fts5(
+    business_name,
+    city,
+    address,
+    content='leads',
+    content_rowid='id'
+);
+"""
+
+CREATE_FTS_TRIGGERS = """
+CREATE TRIGGER IF NOT EXISTS leads_fts_ai AFTER INSERT ON leads BEGIN
+    INSERT INTO leads_fts(rowid, business_name, city, address)
+    VALUES (new.id, new.business_name, new.city, new.address);
+END;
+
+CREATE TRIGGER IF NOT EXISTS leads_fts_ad AFTER DELETE ON leads BEGIN
+    INSERT INTO leads_fts(leads_fts, rowid, business_name, city, address)
+    VALUES ('delete', old.id, old.business_name, old.city, old.address);
+END;
+
+CREATE TRIGGER IF NOT EXISTS leads_fts_au AFTER UPDATE ON leads BEGIN
+    INSERT INTO leads_fts(leads_fts, rowid, business_name, city, address)
+    VALUES ('delete', old.id, old.business_name, old.city, old.address);
+    INSERT INTO leads_fts(rowid, business_name, city, address)
+    VALUES (new.id, new.business_name, new.city, new.address);
+END;
 """
 
 # ---------------------------------------------------------------------------
@@ -88,7 +140,10 @@ DDL_SCRIPT = (
     + CREATE_PIPELINE_RUNS
     + CREATE_SEEN_URLS
     + CREATE_STAGE_HISTORY
+    + CREATE_DUPLICATE_SUGGESTIONS
     + CREATE_INDEXES
+    + CREATE_FTS
+    + CREATE_FTS_TRIGGERS
 )
 
 

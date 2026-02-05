@@ -105,6 +105,7 @@ class TestLeadCrud:
             "stage": "New",
             "source_url": "https://example.com/test",
             "source_type": "license_table",
+            "source_batch_id": None,
             "notes": "Test notes",
         }
 

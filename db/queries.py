@@ -25,6 +25,7 @@ _INSERT_LEAD_COLUMNS = (
     "stage",
     "source_url",
     "source_type",
+    "source_batch_id",
     "notes",
 )
 
@@ -59,6 +60,7 @@ def get_leads(
     stage: str | None = None,
     county: str | None = None,
     min_score: int | None = None,
+    max_score: int | None = None,
     sort: str = "pos_score",
     limit: int = 100,
 ) -> list[dict]:
@@ -70,10 +72,11 @@ def get_leads(
     stage      : filter by stage value (optional)
     county     : filter by county value (optional)
     min_score  : minimum pos_score, inclusive (optional)
+    max_score  : maximum pos_score, inclusive (optional)
     sort       : column name to ORDER BY (default 'pos_score')
     limit      : maximum number of rows returned (default 100)
     """
-    clauses: list[str] = []
+    clauses: list[str] = ["deleted_at IS NULL"]
     params: dict = {}
 
     if stage is not None:
@@ -85,16 +88,19 @@ def get_leads(
     if min_score is not None:
         clauses.append("pos_score >= :min_score")
         params["min_score"] = min_score
+    if max_score is not None:
+        clauses.append("pos_score <= :max_score")
+        params["max_score"] = max_score
 
-    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+    where = " WHERE " + " AND ".join(clauses)
 
     # Guard *sort* against SQL injection – only allow identifiers that exist
     # in the leads table column list.
     _ALLOWED_SORT_COLUMNS = {
         "id", "fingerprint", "business_name", "business_type", "raw_type",
         "address", "city", "state", "zip_code", "county", "license_date",
-        "pos_score", "stage", "source_url", "source_type", "notes",
-        "created_at", "updated_at", "contacted_at", "closed_at",
+        "pos_score", "stage", "source_url", "source_type", "source_batch_id",
+        "notes", "created_at", "updated_at", "contacted_at", "closed_at",
     }
     if sort not in _ALLOWED_SORT_COLUMNS:
         raise ValueError(f"Invalid sort column: {sort}")
@@ -108,8 +114,169 @@ def get_leads(
 
 def get_lead(conn: sqlite3.Connection, lead_id: int) -> dict | None:
     """Return a single lead as a dict, or None if not found."""
-    row = conn.execute("SELECT * FROM leads WHERE id = ?;", (lead_id,)).fetchone()
+    row = conn.execute("SELECT * FROM leads WHERE id = ? AND deleted_at IS NULL;", (lead_id,)).fetchone()
     return dict(row) if row else None
+
+
+def search_leads(
+    conn: sqlite3.Connection,
+    query: str,
+    limit: int = 50,
+) -> list[dict]:
+    """Full-text search on business_name, city, address using FTS5.
+
+    Parameters
+    ----------
+    conn  : open sqlite3 connection
+    query : search query string
+    limit : maximum number of rows returned (default 50)
+
+    Returns
+    -------
+    list of leads matching the search query, ordered by relevance
+    """
+    if not query or not query.strip():
+        return []
+
+    # Escape special FTS5 characters and add prefix matching
+    safe_query = query.replace('"', '""').strip()
+    fts_query = f'"{safe_query}"*'
+
+    sql = """
+        SELECT leads.*
+        FROM leads_fts
+        JOIN leads ON leads_fts.rowid = leads.id
+        WHERE leads_fts MATCH :query
+          AND leads.deleted_at IS NULL
+        ORDER BY rank
+        LIMIT :limit;
+    """
+    rows = conn.execute(sql, {"query": fts_query, "limit": limit}).fetchall()
+    return _rows_to_dicts(rows)
+
+
+def get_leads_by_batch(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
+    """Return all leads that share the same source_batch_id."""
+    if not batch_id:
+        return []
+    rows = conn.execute(
+        "SELECT * FROM leads WHERE source_batch_id = ? AND deleted_at IS NULL ORDER BY id;",
+        (batch_id,),
+    ).fetchall()
+    return _rows_to_dicts(rows)
+
+
+# ---------------------------------------------------------------------------
+# Lead field editing
+# ---------------------------------------------------------------------------
+
+
+_EDITABLE_FIELDS = {
+    "business_name",
+    "address",
+    "city",
+    "county",
+    "zip_code",
+    "business_type",
+}
+
+
+def update_lead_fields(
+    conn: sqlite3.Connection,
+    lead_id: int,
+    fields: dict,
+) -> dict | None:
+    """Update editable fields on a lead and return the updated lead.
+
+    Parameters
+    ----------
+    conn    : open sqlite3 connection
+    lead_id : ID of the lead to update
+    fields  : dict of field_name -> new_value (only editable fields allowed)
+
+    Returns
+    -------
+    The updated lead as a dict, or None if lead not found
+    """
+    # Filter to only allowed fields
+    updates = {k: v for k, v in fields.items() if k in _EDITABLE_FIELDS}
+    if not updates:
+        return get_lead(conn, lead_id)
+
+    set_clauses = [f"{col} = :{col}" for col in updates]
+    set_clauses.append("updated_at = datetime('now')")
+    updates["lead_id"] = lead_id
+
+    sql = f"UPDATE leads SET {', '.join(set_clauses)} WHERE id = :lead_id AND deleted_at IS NULL;"
+
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(sql, updates)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+    return get_lead(conn, lead_id)
+
+
+# ---------------------------------------------------------------------------
+# Bulk operations
+# ---------------------------------------------------------------------------
+
+
+def soft_delete_leads(conn: sqlite3.Connection, ids: list[int]) -> list[int]:
+    """Soft-delete leads by setting deleted_at timestamp.
+
+    Returns list of IDs that were actually deleted.
+    """
+    if not ids:
+        return []
+
+    deleted = []
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        for lead_id in ids:
+            cur = conn.execute(
+                "UPDATE leads SET deleted_at = datetime('now'), updated_at = datetime('now') "
+                "WHERE id = ? AND deleted_at IS NULL;",
+                (lead_id,),
+            )
+            if cur.rowcount > 0:
+                deleted.append(lead_id)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+    return deleted
+
+
+def bulk_update_county(conn: sqlite3.Connection, ids: list[int], county: str) -> list[int]:
+    """Update county for multiple leads.
+
+    Returns list of IDs that were actually updated.
+    """
+    if not ids:
+        return []
+
+    updated = []
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        for lead_id in ids:
+            cur = conn.execute(
+                "UPDATE leads SET county = ?, updated_at = datetime('now') "
+                "WHERE id = ? AND deleted_at IS NULL;",
+                (county, lead_id),
+            )
+            if cur.rowcount > 0:
+                updated.append(lead_id)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+    return updated
 
 
 # ---------------------------------------------------------------------------
@@ -231,38 +398,38 @@ def get_stats(conn: sqlite3.Connection) -> dict:
         total_leads: int
         last_run   : dict | None     – most recent pipeline_runs row as a dict
     """
-    # by_stage
+    # by_stage (exclude deleted)
     by_stage = {
         row["stage"]: row["cnt"]
         for row in conn.execute(
-            "SELECT stage, COUNT(*) AS cnt FROM leads GROUP BY stage;"
+            "SELECT stage, COUNT(*) AS cnt FROM leads WHERE deleted_at IS NULL GROUP BY stage;"
         ).fetchall()
     }
 
-    # by_county
+    # by_county (exclude deleted)
     by_county = {
         row["county"]: row["cnt"]
         for row in conn.execute(
-            "SELECT county, COUNT(*) AS cnt FROM leads GROUP BY county;"
+            "SELECT county, COUNT(*) AS cnt FROM leads WHERE deleted_at IS NULL GROUP BY county;"
         ).fetchall()
     }
 
-    # by_type
+    # by_type (exclude deleted)
     by_type = {
         row["business_type"]: row["cnt"]
         for row in conn.execute(
-            "SELECT business_type, COUNT(*) AS cnt FROM leads GROUP BY business_type;"
+            "SELECT business_type, COUNT(*) AS cnt FROM leads WHERE deleted_at IS NULL GROUP BY business_type;"
         ).fetchall()
     }
 
-    # avg_score
+    # avg_score (exclude deleted)
     avg_row = conn.execute(
-        "SELECT COALESCE(AVG(pos_score), 0.0) AS avg FROM leads;"
+        "SELECT COALESCE(AVG(pos_score), 0.0) AS avg FROM leads WHERE deleted_at IS NULL;"
     ).fetchone()
     avg_score: float = float(avg_row["avg"])
 
-    # total_leads
-    total_row = conn.execute("SELECT COUNT(*) AS cnt FROM leads;").fetchone()
+    # total_leads (exclude deleted)
+    total_row = conn.execute("SELECT COUNT(*) AS cnt FROM leads WHERE deleted_at IS NULL;").fetchone()
     total_leads: int = int(total_row["cnt"])
 
     # last_run
@@ -357,3 +524,290 @@ def get_pipeline_runs(conn: sqlite3.Connection, limit: int = 10) -> list[dict]:
         (limit,),
     ).fetchall()
     return _rows_to_dicts(rows)
+
+
+# ---------------------------------------------------------------------------
+# Duplicate Detection
+# ---------------------------------------------------------------------------
+
+
+def _normalize_name(name: str | None) -> str:
+    """Normalize a business name for comparison."""
+    if not name:
+        return ""
+    # Lowercase, remove punctuation, collapse whitespace
+    import re
+    normalized = name.lower()
+    normalized = re.sub(r"[^\w\s]", "", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+    # Remove common suffixes
+    for suffix in ("llc", "inc", "corp", "co", "ltd"):
+        if normalized.endswith(" " + suffix):
+            normalized = normalized[: -(len(suffix) + 1)]
+    return normalized
+
+
+def _levenshtein_distance(s1: str, s2: str) -> int:
+    """Compute Levenshtein edit distance between two strings."""
+    if len(s1) < len(s2):
+        return _levenshtein_distance(s2, s1)
+
+    if len(s2) == 0:
+        return len(s1)
+
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+
+    return previous_row[-1]
+
+
+def _compute_similarity(lead_a: dict, lead_b: dict) -> float:
+    """Compute similarity score between two leads (0-1)."""
+    name_a = _normalize_name(lead_a.get("business_name"))
+    name_b = _normalize_name(lead_b.get("business_name"))
+
+    if not name_a or not name_b:
+        return 0.0
+
+    max_len = max(len(name_a), len(name_b))
+    if max_len == 0:
+        return 0.0
+
+    distance = _levenshtein_distance(name_a, name_b)
+    name_sim = 1 - (distance / max_len)
+
+    city_a = (lead_a.get("city") or "").lower().strip()
+    city_b = (lead_b.get("city") or "").lower().strip()
+    city_match = 1.0 if city_a and city_a == city_b else 0.0
+
+    # Weighted: 70% name, 30% city
+    return (name_sim * 0.7) + (city_match * 0.3)
+
+
+def find_duplicates(
+    conn: sqlite3.Connection,
+    threshold: float = 0.7,
+    limit: int = 100,
+) -> int:
+    """Scan for duplicate leads and insert suggestions.
+
+    Parameters
+    ----------
+    conn      : open sqlite3 connection
+    threshold : minimum similarity score to consider a duplicate (default 0.7)
+    limit     : max number of new suggestions to create per run (default 100)
+
+    Returns
+    -------
+    Number of new suggestions created.
+    """
+    # Get active leads
+    rows = conn.execute(
+        "SELECT id, business_name, city FROM leads WHERE deleted_at IS NULL ORDER BY id;"
+    ).fetchall()
+    leads = _rows_to_dicts(rows)
+
+    # Get existing suggestions to avoid re-checking
+    existing = set()
+    for row in conn.execute(
+        "SELECT lead_id_a, lead_id_b FROM duplicate_suggestions;"
+    ).fetchall():
+        existing.add((row[0], row[1]))
+        existing.add((row[1], row[0]))
+
+    suggestions = []
+    for i, lead_a in enumerate(leads):
+        for lead_b in leads[i + 1 :]:
+            # Skip if already suggested
+            if (lead_a["id"], lead_b["id"]) in existing:
+                continue
+
+            similarity = _compute_similarity(lead_a, lead_b)
+            if similarity >= threshold:
+                # Ensure consistent ordering (lower id first)
+                id_a, id_b = min(lead_a["id"], lead_b["id"]), max(lead_a["id"], lead_b["id"])
+                suggestions.append((id_a, id_b, similarity))
+
+                if len(suggestions) >= limit:
+                    break
+        if len(suggestions) >= limit:
+            break
+
+    # Insert suggestions
+    inserted = 0
+    for id_a, id_b, score in suggestions:
+        try:
+            conn.execute(
+                "INSERT OR IGNORE INTO duplicate_suggestions (lead_id_a, lead_id_b, similarity_score) "
+                "VALUES (?, ?, ?);",
+                (id_a, id_b, score),
+            )
+            inserted += 1
+        except Exception:
+            pass
+
+    conn.commit()
+    return inserted
+
+
+def get_duplicate_suggestions(
+    conn: sqlite3.Connection,
+    status: str = "pending",
+    limit: int = 20,
+) -> list[dict]:
+    """Get duplicate suggestions with full lead data.
+
+    Returns list of dicts with keys: id, lead_a, lead_b, similarity_score, status, created_at
+    """
+    rows = conn.execute(
+        """
+        SELECT
+            ds.id,
+            ds.lead_id_a,
+            ds.lead_id_b,
+            ds.similarity_score,
+            ds.status,
+            ds.created_at
+        FROM duplicate_suggestions ds
+        JOIN leads la ON ds.lead_id_a = la.id AND la.deleted_at IS NULL
+        JOIN leads lb ON ds.lead_id_b = lb.id AND lb.deleted_at IS NULL
+        WHERE ds.status = ?
+        ORDER BY ds.similarity_score DESC
+        LIMIT ?;
+        """,
+        (status, limit),
+    ).fetchall()
+
+    suggestions = []
+    for row in rows:
+        lead_a = get_lead(conn, row["lead_id_a"])
+        lead_b = get_lead(conn, row["lead_id_b"])
+        if lead_a and lead_b:
+            suggestions.append({
+                "id": row["id"],
+                "lead_a": lead_a,
+                "lead_b": lead_b,
+                "similarity_score": row["similarity_score"],
+                "status": row["status"],
+                "created_at": row["created_at"],
+            })
+
+    return suggestions
+
+
+def get_duplicate_suggestion_count(conn: sqlite3.Connection, status: str = "pending") -> int:
+    """Get count of duplicate suggestions with given status."""
+    row = conn.execute(
+        """
+        SELECT COUNT(*) as cnt
+        FROM duplicate_suggestions ds
+        JOIN leads la ON ds.lead_id_a = la.id AND la.deleted_at IS NULL
+        JOIN leads lb ON ds.lead_id_b = lb.id AND lb.deleted_at IS NULL
+        WHERE ds.status = ?;
+        """,
+        (status,),
+    ).fetchone()
+    return row["cnt"] if row else 0
+
+
+def update_duplicate_suggestion(
+    conn: sqlite3.Connection,
+    suggestion_id: int,
+    status: str,
+) -> bool:
+    """Update the status of a duplicate suggestion.
+
+    Parameters
+    ----------
+    conn          : open sqlite3 connection
+    suggestion_id : ID of the suggestion to update
+    status        : new status ('merged' or 'dismissed')
+
+    Returns
+    -------
+    True if updated, False if not found.
+    """
+    cur = conn.execute(
+        "UPDATE duplicate_suggestions SET status = ?, resolved_at = datetime('now') "
+        "WHERE id = ?;",
+        (status, suggestion_id),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def merge_leads(
+    conn: sqlite3.Connection,
+    keep_id: int,
+    merge_id: int,
+    field_choices: dict | None = None,
+) -> dict | None:
+    """Merge two leads, keeping one and soft-deleting the other.
+
+    Parameters
+    ----------
+    conn          : open sqlite3 connection
+    keep_id       : ID of the lead to keep
+    merge_id      : ID of the lead to merge (will be soft-deleted)
+    field_choices : optional dict of field names -> values to apply to kept lead
+
+    Returns
+    -------
+    The merged lead as a dict, or None if either lead not found.
+    """
+    keep_lead = get_lead(conn, keep_id)
+    merge_lead = get_lead(conn, merge_id)
+
+    if not keep_lead or not merge_lead:
+        return None
+
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+
+        # Apply field choices if provided
+        if field_choices:
+            updates = {k: v for k, v in field_choices.items() if k in _EDITABLE_FIELDS}
+            if updates:
+                set_clauses = [f"{col} = :{col}" for col in updates]
+                set_clauses.append("updated_at = datetime('now')")
+                updates["lead_id"] = keep_id
+                sql = f"UPDATE leads SET {', '.join(set_clauses)} WHERE id = :lead_id;"
+                conn.execute(sql, updates)
+
+        # Merge notes
+        if merge_lead.get("notes"):
+            merge_notes = merge_lead["notes"]
+            note_addition = f"\n--- Merged from lead #{merge_id} ---\n{merge_notes}"
+            conn.execute(
+                "UPDATE leads SET notes = COALESCE(notes, '') || ?, updated_at = datetime('now') "
+                "WHERE id = ?;",
+                (note_addition, keep_id),
+            )
+
+        # Soft-delete the merged lead
+        conn.execute(
+            "UPDATE leads SET deleted_at = datetime('now'), updated_at = datetime('now') "
+            "WHERE id = ?;",
+            (merge_id,),
+        )
+
+        # Update any duplicate suggestions involving the merged lead
+        conn.execute(
+            "UPDATE duplicate_suggestions SET status = 'merged', resolved_at = datetime('now') "
+            "WHERE (lead_id_a = ? OR lead_id_b = ?) AND status = 'pending';",
+            (merge_id, merge_id),
+        )
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+    return get_lead(conn, keep_id)

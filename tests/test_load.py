@@ -39,6 +39,7 @@ class TestRunLoad:
                 "pos_score": 85,
                 "source_url": "https://example.com/1",
                 "source_type": "license_table",
+                "source_batch_id": None,
                 "notes": None,
             },
             {
@@ -55,6 +56,7 @@ class TestRunLoad:
                 "pos_score": 65,
                 "source_url": "https://example.com/2",
                 "source_type": "news_article",
+                "source_batch_id": None,
                 "notes": None,
             },
         ]
@@ -205,6 +207,7 @@ class TestRunLoad:
                 "pos_score": 50,
                 "source_url": "https://example.com/old",
                 "source_type": "search_snippet",
+                "source_batch_id": None,
                 "notes": None,
             },
         ]
@@ -234,6 +237,7 @@ class TestRunLoad:
                 "pos_score": 50,
                 "source_url": "https://example.com/old",
                 "source_type": "search_snippet",
+                "source_batch_id": None,
                 "notes": None,
             },
             {
@@ -250,6 +254,7 @@ class TestRunLoad:
                 "pos_score": 70,
                 "source_url": "https://example.com/new",
                 "source_type": "news_article",
+                "source_batch_id": None,
                 "notes": None,
             },
         ]

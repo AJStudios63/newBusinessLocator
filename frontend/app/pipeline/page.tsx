@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,8 +18,6 @@ import { getPipelineRuns, getPipelineStatus, triggerPipelineRun } from "@/lib/ap
 import { Loader2, Play, CheckCircle, XCircle, Clock } from "lucide-react";
 
 export default function PipelinePage() {
-  const queryClient = useQueryClient();
-
   const { data: runs, isLoading } = useQuery({
     queryKey: ["pipelineRuns"],
     queryFn: () => getPipelineRuns(20),

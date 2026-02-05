@@ -14,6 +14,7 @@ export interface Lead {
   stage: Stage;
   source_url: string | null;
   source_type: string | null;
+  source_batch_id: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -36,6 +37,29 @@ export const STAGES: Stage[] = [
   "Follow-up",
   "Closed-Won",
   "Closed-Lost",
+];
+
+export type BusinessType =
+  | "restaurant"
+  | "bar"
+  | "retail"
+  | "salon"
+  | "cafe"
+  | "bakery"
+  | "gym"
+  | "spa"
+  | "other";
+
+export const BUSINESS_TYPES: BusinessType[] = [
+  "restaurant",
+  "bar",
+  "retail",
+  "salon",
+  "cafe",
+  "bakery",
+  "gym",
+  "spa",
+  "other",
 ];
 
 export interface LeadsResponse {
@@ -82,9 +106,43 @@ export interface KanbanData {
 }
 
 export interface LeadFilters {
+  q?: string;
   stage?: string;
   county?: string;
   minScore?: number;
+  maxScore?: number;
   sort?: string;
   limit?: number;
+}
+
+export interface LeadFieldUpdate {
+  business_name?: string;
+  address?: string;
+  city?: string;
+  county?: string;
+  zip_code?: string;
+  business_type?: string;
+  stage?: string;
+  note?: string;
+}
+
+export interface DuplicateSuggestion {
+  id: number;
+  lead_a: Lead;
+  lead_b: Lead;
+  similarity_score: number;
+  status: "pending" | "merged" | "dismissed";
+  created_at: string;
+}
+
+export interface DuplicatesResponse {
+  suggestions: DuplicateSuggestion[];
+  count: number;
+}
+
+export interface MergeRequest {
+  keep_id: number;
+  merge_id: number;
+  field_choices?: Record<string, string>;
+  suggestion_id?: number;
 }

@@ -6,6 +6,9 @@ import type {
   PipelineStatus,
   KanbanData,
   LeadFilters,
+  LeadFieldUpdate,
+  DuplicatesResponse,
+  MergeRequest,
 } from "./types";
 
 const API_BASE = "/api";
@@ -30,14 +33,20 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 // Leads
 export async function getLeads(filters: LeadFilters = {}): Promise<LeadsResponse> {
   const params = new URLSearchParams();
+  if (filters.q) params.set("q", filters.q);
   if (filters.stage) params.set("stage", filters.stage);
   if (filters.county) params.set("county", filters.county);
-  if (filters.minScore) params.set("minScore", filters.minScore.toString());
+  if (filters.minScore !== undefined) params.set("minScore", filters.minScore.toString());
+  if (filters.maxScore !== undefined) params.set("maxScore", filters.maxScore.toString());
   if (filters.sort) params.set("sort", filters.sort);
   if (filters.limit) params.set("limit", filters.limit.toString());
 
   const query = params.toString();
   return fetchJson<LeadsResponse>(`${API_BASE}/leads${query ? `?${query}` : ""}`);
+}
+
+export async function getLeadsByBatch(batchId: string): Promise<LeadsResponse & { batch_id: string }> {
+  return fetchJson(`${API_BASE}/leads/batch/${encodeURIComponent(batchId)}`);
 }
 
 export async function getLead(id: number): Promise<Lead> {
@@ -57,6 +66,16 @@ export async function updateLead(
   });
 }
 
+export async function updateLeadFields(
+  id: number,
+  fields: LeadFieldUpdate
+): Promise<Lead> {
+  return fetchJson<Lead>(`${API_BASE}/leads/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(fields),
+  });
+}
+
 export async function updateLeadStage(id: number, stage: string): Promise<{ id: number; stage: string }> {
   return fetchJson(`${API_BASE}/leads/${id}/stage?stage=${encodeURIComponent(stage)}`, {
     method: "PATCH",
@@ -65,10 +84,11 @@ export async function updateLeadStage(id: number, stage: string): Promise<{ id: 
 
 export async function bulkUpdateLeads(
   ids: number[],
-  stage: string
-): Promise<{ updated: number[]; errors: Array<{ id: number; error: string }> }> {
+  options: { stage?: string; county?: string }
+): Promise<{ updated: number[]; errors: Array<{ id?: number; error: string }> }> {
   const params = new URLSearchParams();
-  params.set("stage", stage);
+  if (options.stage) params.set("stage", options.stage);
+  if (options.county) params.set("county", options.county);
   ids.forEach((id) => params.append("ids", id.toString()));
 
   return fetchJson(`${API_BASE}/leads/bulk?${params.toString()}`, {
@@ -76,11 +96,23 @@ export async function bulkUpdateLeads(
   });
 }
 
+export async function bulkDeleteLeads(
+  ids: number[]
+): Promise<{ deleted: number[]; errors: Array<{ id: number; error: string }> }> {
+  const params = new URLSearchParams();
+  ids.forEach((id) => params.append("ids", id.toString()));
+
+  return fetchJson(`${API_BASE}/leads/bulk?${params.toString()}`, {
+    method: "DELETE",
+  });
+}
+
 export function getExportUrl(filters: LeadFilters = {}): string {
   const params = new URLSearchParams();
   if (filters.stage) params.set("stage", filters.stage);
   if (filters.county) params.set("county", filters.county);
-  if (filters.minScore) params.set("minScore", filters.minScore.toString());
+  if (filters.minScore !== undefined) params.set("minScore", filters.minScore.toString());
+  if (filters.maxScore !== undefined) params.set("maxScore", filters.maxScore.toString());
 
   const query = params.toString();
   return `${API_BASE}/leads/export${query ? `?${query}` : ""}`;
@@ -112,4 +144,33 @@ export async function getKanbanData(filters: LeadFilters = {}): Promise<KanbanDa
 
   const query = params.toString();
   return fetchJson<KanbanData>(`${API_BASE}/kanban${query ? `?${query}` : ""}`);
+}
+
+// Duplicates
+export async function getDuplicatesCount(): Promise<{ count: number; status: string }> {
+  return fetchJson(`${API_BASE}/leads/duplicates/count`);
+}
+
+export async function getDuplicates(limit = 20): Promise<DuplicatesResponse> {
+  return fetchJson(`${API_BASE}/leads/duplicates?limit=${limit}`);
+}
+
+export async function scanForDuplicates(threshold = 0.7): Promise<{ new_suggestions: number }> {
+  return fetchJson(`${API_BASE}/leads/duplicates/scan?threshold=${threshold}`, { method: "POST" });
+}
+
+export async function updateDuplicateSuggestion(
+  suggestionId: number,
+  status: "merged" | "dismissed"
+): Promise<{ id: number; status: string }> {
+  return fetchJson(`${API_BASE}/leads/duplicates/${suggestionId}?status=${status}`, {
+    method: "PATCH",
+  });
+}
+
+export async function mergeLeads(request: MergeRequest): Promise<Lead> {
+  return fetchJson(`${API_BASE}/leads/merge`, {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
 }

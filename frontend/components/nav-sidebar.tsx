@@ -8,12 +8,14 @@ import {
   Users,
   Columns3,
   Play,
+  Copy,
 } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/leads", label: "Leads", icon: Users },
   { href: "/kanban", label: "Kanban", icon: Columns3 },
+  { href: "/duplicates", label: "Duplicates", icon: Copy },
   { href: "/pipeline", label: "Pipeline", icon: Play },
 ];
 
