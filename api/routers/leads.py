@@ -129,7 +129,7 @@ def quick_stage_update(
 @router.post("/bulk")
 def bulk_update_leads(
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
-    ids: list[int] = [],
+    ids: Annotated[list[int], Query()] = [],
     stage: str | None = None,
 ):
     """Bulk update stage for multiple leads."""
