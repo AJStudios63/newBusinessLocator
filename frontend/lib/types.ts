@@ -71,6 +71,12 @@ export interface LeadsResponse {
   totalPages: number;
 }
 
+export interface LeadsBatchResponse {
+  leads: Lead[];
+  count: number;
+  batch_id: string;
+}
+
 export interface Stats {
   by_stage: Record<string, number>;
   by_county: Record<string, number>;

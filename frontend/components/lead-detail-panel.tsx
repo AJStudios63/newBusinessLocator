@@ -56,7 +56,7 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
         setBatchCount(null);
       }
     }
-  }, [lead?.id]);
+  }, [lead]);
 
   const stageMutation = useMutation({
     mutationFn: () =>

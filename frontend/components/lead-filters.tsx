@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Select,
   SelectContent,
@@ -22,24 +22,30 @@ interface LeadFiltersProps {
 
 export function LeadFiltersBar({ filters, onFilterChange, counties }: LeadFiltersProps) {
   const [searchInput, setSearchInput] = useState(filters.q || "");
+  const filtersRef = useRef(filters);
+
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
 
   // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (searchInput !== (filters.q || "")) {
-        onFilterChange({ ...filters, q: searchInput || undefined });
+      const currentQuery = filtersRef.current.q || "";
+      if (searchInput !== currentQuery) {
+        onFilterChange({ ...filtersRef.current, q: searchInput || undefined });
       }
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchInput]);
+  }, [searchInput, onFilterChange]);
 
   // Sync searchInput when filters.q changes externally
   useEffect(() => {
     if (filters.q !== searchInput) {
       setSearchInput(filters.q || "");
     }
-  }, [filters.q]);
+  }, [filters.q, searchInput]);
 
   const clearSearch = useCallback(() => {
     setSearchInput("");

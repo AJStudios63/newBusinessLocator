@@ -1,6 +1,6 @@
 # New Business Locator
 
-A lead generation ETL pipeline that discovers new businesses opening in Nashville and Middle Tennessee, scores them for POS (Point-of-Sale) system sales relevance, and provides a CLI for managing the sales pipeline.
+A lead generation ETL pipeline that discovers new businesses opening in Nashville and Middle Tennessee, scores them for POS (Point-of-Sale) system sales relevance, and provides both CLI and web interfaces for managing the sales pipeline.
 
 ## Table of Contents
 
@@ -9,11 +9,14 @@ A lead generation ETL pipeline that discovers new businesses opening in Nashvill
 - [Data Flow](#data-flow)
 - [Architecture](#architecture)
 - [Installation](#installation)
+- [Web Interface](#web-interface)
 - [Configuration](#configuration)
 - [CLI Reference](#cli-reference)
+- [API Reference](#api-reference)
 - [Database Schema](#database-schema)
 - [Lead Scoring](#lead-scoring)
-- [Testing](#testing)
+- [Target Geography](#target-geography)
+- [Development](#development)
 
 ---
 
@@ -241,6 +244,30 @@ This pipeline automates lead discovery by:
 
 ```
 newBusinessLocator/
+├── api/                     # FastAPI backend
+│   ├── main.py              # App entry point, CORS, router mounting
+│   ├── dependencies.py      # Database connection injection
+│   └── routers/
+│       ├── leads.py         # Lead CRUD, search, bulk ops, duplicate detection
+│       ├── stats.py         # Aggregate statistics
+│       ├── kanban.py        # Stage-based board data
+│       └── pipeline.py      # Trigger ETL runs
+├── frontend/                # Next.js 14 web dashboard
+│   ├── app/
+│   │   ├── page.tsx         # Dashboard with stats cards and charts
+│   │   ├── leads/page.tsx   # Paginated lead table with filters
+│   │   ├── kanban/page.tsx  # Drag-drop stage management
+│   │   ├── duplicates/page.tsx  # Duplicate detection and merge UI
+│   │   ├── pipeline/page.tsx    # ETL run history and trigger
+│   │   └── batch/[id]/page.tsx  # Leads from specific extraction batch
+│   ├── components/          # React components
+│   │   ├── ui/              # shadcn/ui primitives
+│   │   ├── lead-table.tsx   # Lead list with sorting/selection
+│   │   ├── kanban-board.tsx # Drag-drop stage columns
+│   │   └── charts.tsx       # Dashboard visualizations
+│   └── lib/
+│       ├── api.ts           # API client functions
+│       └── types.ts         # TypeScript interfaces
 ├── cli/
 │   └── main.py              # Click CLI: run, leads, lead, update, stats, export, rescore, schedule
 ├── config/
@@ -262,12 +289,12 @@ newBusinessLocator/
 │   ├── dedup.py             # Fingerprint generation with name normalization
 │   └── logging_config.py    # Structured logging setup
 ├── tests/                   # Pytest test suite
+├── scripts/
+│   └── dev.sh               # Start API + frontend servers together
 ├── data/
 │   └── leads.db             # SQLite database (created on first run)
-├── logs/
-│   └── pipeline.log         # Run history log
-└── scripts/
-    └── com.newbusinesslocator.weekly.plist  # macOS launchd template
+└── logs/
+    └── pipeline.log         # Run history log
 ```
 
 ### Key Design Decisions
@@ -315,6 +342,48 @@ export TAVILY_API_KEY="your-api-key-here"
 ```
 
 The database (`data/leads.db`) is created automatically on first run.
+
+---
+
+## Web Interface
+
+The application includes a full-featured web dashboard built with Next.js and FastAPI.
+
+### Quick Start
+
+```bash
+# Start both API and frontend servers
+./scripts/dev.sh
+
+# Or start separately:
+# Terminal 1: API server
+uvicorn api.main:app --reload --port 8000
+
+# Terminal 2: Frontend
+cd frontend && npm run dev
+```
+
+**Access:**
+- Dashboard: http://localhost:3000
+- API Documentation: http://localhost:8000/docs
+
+### Dashboard Features
+
+| Page | Description |
+|------|-------------|
+| **Dashboard** (`/`) | Stats cards showing leads by stage, county, and type. Charts for score distribution and recent activity. |
+| **Leads** (`/leads`) | Paginated table with filters (stage, county, score range, search). Click any row to view/edit details. |
+| **Kanban** (`/kanban`) | Drag-and-drop board organized by pipeline stage. Quick stage changes without opening lead details. |
+| **Duplicates** (`/duplicates`) | Review potential duplicate leads detected by fuzzy matching. Merge or dismiss suggestions. |
+| **Pipeline** (`/pipeline`) | View ETL run history. Trigger new runs manually. See leads discovered in each batch. |
+
+### Frontend Stack
+
+- **Next.js 14** — React framework with App Router
+- **React Query** (`@tanstack/react-query`) — Server state management with automatic caching
+- **shadcn/ui** — Accessible UI components built on Radix primitives
+- **Tailwind CSS** — Utility-first styling
+- **TypeScript** — Full type safety
 
 ---
 
@@ -486,6 +555,61 @@ python -m cli.main --log-console run
 
 ---
 
+## API Reference
+
+The FastAPI backend provides a RESTful API for all lead operations. Full interactive documentation is available at http://localhost:8000/docs when the server is running.
+
+### Endpoints Overview
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/leads` | List leads with filters and pagination |
+| `GET` | `/api/leads/{id}` | Get single lead details |
+| `PATCH` | `/api/leads/{id}` | Update lead fields, stage, or add notes |
+| `GET` | `/api/leads/export` | Download filtered leads as CSV |
+| `POST` | `/api/leads/bulk` | Bulk update stage/county for multiple leads |
+| `DELETE` | `/api/leads/bulk` | Soft-delete multiple leads |
+| `GET` | `/api/leads/duplicates` | List duplicate suggestions |
+| `POST` | `/api/leads/duplicates/scan` | Trigger duplicate detection scan |
+| `POST` | `/api/leads/merge` | Merge two leads into one |
+| `GET` | `/api/stats` | Aggregate statistics |
+| `GET` | `/api/kanban` | Leads grouped by stage for board view |
+| `POST` | `/api/pipeline/run` | Trigger ETL pipeline run |
+| `GET` | `/api/pipeline/runs` | List pipeline run history |
+
+### Pagination
+
+List endpoints support pagination via query parameters:
+
+```
+GET /api/leads?page=1&pageSize=50&stage=New&county=Davidson&minScore=40
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | int | 1 | Page number (1-indexed) |
+| `pageSize` | int | 50 | Results per page |
+| `stage` | string | - | Filter by pipeline stage |
+| `county` | string | - | Filter by county |
+| `minScore` | int | - | Minimum pos_score (inclusive) |
+| `maxScore` | int | - | Maximum pos_score (inclusive) |
+| `q` | string | - | Full-text search on business name, city, address |
+| `sort` | string | pos_score | Column to sort by (descending) |
+
+Response includes pagination metadata:
+
+```json
+{
+  "leads": [...],
+  "total": 150,
+  "page": 1,
+  "pageSize": 50,
+  "totalPages": 3
+}
+```
+
+---
+
 ## Database Schema
 
 ### leads
@@ -554,6 +678,24 @@ Append-only audit trail of stage changes.
 | old_stage | TEXT | Previous stage |
 | new_stage | TEXT | New stage |
 | changed_at | TEXT | Timestamp of change |
+
+### duplicate_suggestions
+
+Potential duplicates detected by fuzzy matching.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INTEGER | Primary key |
+| lead_id_a | INTEGER | First lead in pair |
+| lead_id_b | INTEGER | Second lead in pair |
+| similarity_score | REAL | Match confidence (0.0-1.0) |
+| status | TEXT | pending, merged, or dismissed |
+| created_at | TEXT | When suggestion was created |
+| resolved_at | TEXT | When suggestion was resolved |
+
+### leads_fts
+
+FTS5 virtual table for full-text search on business_name, city, and address.
 
 ---
 
@@ -628,35 +770,6 @@ How recently was the license issued? (License table sources only)
 
 ---
 
-## Testing
-
-Tests use pytest and cover the transform functions.
-
-```bash
-# Run all tests
-pytest tests/
-
-# Run a specific test file
-pytest tests/test_transform.py
-
-# Run with verbose output
-pytest tests/ -v
-
-# Run with coverage
-pytest tests/ --cov=etl --cov=utils
-```
-
-### Test Coverage
-
-- `test_transform.py` — classify, is_chain, is_article_title, score_lead, infer_county, deduplicate
-- `test_parsers.py` — parse_license_table, parse_news_article, parse_snippet
-- `test_dedup.py` — fingerprint generation, name normalization
-- `test_extract.py` — domain filtering, URL handling
-- `test_load.py` — database insertion, duplicate handling
-- `test_db.py` — schema initialization, query functions
-
----
-
 ## Target Geography
 
 The pipeline focuses on Nashville and Middle Tennessee:
@@ -691,6 +804,53 @@ The pipeline focuses on Nashville and Middle Tennessee:
 | `logs/pipeline.log` | Run history (appended) |
 | `logs/launchd_stdout.log` | Scheduled run output (if using schedule) |
 | `logs/launchd_stderr.log` | Scheduled run errors (if using schedule) |
+
+---
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest tests/
+
+# Run specific test file
+pytest tests/test_transform.py
+
+# Run specific test by name
+pytest tests/test_transform.py::TestClassify::test_classifies_restaurant_by_raw_type -v
+
+# Run with coverage
+pytest tests/ --cov=etl --cov=utils --cov=db
+```
+
+### Frontend Development
+
+```bash
+cd frontend
+
+# Install dependencies (first time only)
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Run linter
+npm run lint
+```
+
+### API Development
+
+```bash
+# Start with auto-reload
+uvicorn api.main:app --reload --port 8000
+
+# API docs available at http://localhost:8000/docs
+```
 
 ---
 

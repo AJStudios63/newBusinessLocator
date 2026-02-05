@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ETL pipeline that discovers new businesses in Nashville/Middle Tennessee using Tavily search API, scores them for POS-system sales relevance, and loads into SQLite with a CLI interface for lead management.
+ETL pipeline that discovers new businesses in Nashville/Middle Tennessee using Tavily search API, scores them for POS-system sales relevance, and loads into SQLite. Includes both CLI and web interfaces for lead management.
 
 ## Commands
 
@@ -36,25 +36,23 @@ python -m cli.main export --output /tmp/leads.csv
 # Re-classify and re-score all existing leads
 python -m cli.main rescore
 
-# Manage scheduled weekly runs (launchd)
-python -m cli.main schedule status
-python -m cli.main schedule install
-python -m cli.main schedule uninstall
-
-# Run tests
+# Run all tests
 pytest tests/
 
 # Run a single test file
 pytest tests/test_transform.py
 
-# Run with verbose output
-pytest tests/ -v
+# Run a specific test by name
+pytest tests/test_transform.py::TestClassify::test_classifies_restaurant_by_raw_type -v
+
+# Run tests with coverage
+pytest tests/ --cov=etl --cov=utils --cov=db
 ```
 
 ## Frontend Development
 
 ```bash
-# Start both servers (recommended)
+# Start both API and frontend servers (recommended)
 ./scripts/dev.sh
 
 # Or start separately:
@@ -100,11 +98,42 @@ INSERT OR IGNORE into leads table (fingerprint is UNIQUE)
 - `parse_news_article()` — parses `##` headings from news sites
 - `parse_snippet()` — extracts business name from search result title
 
+### Web API
+
+FastAPI backend at `api/` with routers:
+- `api/routers/leads.py` — CRUD, search, pagination, bulk operations, duplicate detection/merge
+- `api/routers/stats.py` — aggregate statistics
+- `api/routers/kanban.py` — stage-based board view
+- `api/routers/pipeline.py` — trigger ETL runs
+
+Key API patterns:
+- Pagination via `page` and `pageSize` query params (1-indexed)
+- Filters: `stage`, `county`, `minScore`, `maxScore`, `q` (full-text search)
+- Database connection via `Depends(get_db)` from `api/dependencies.py`
+
+### Frontend
+
+Next.js 14 app at `frontend/` using:
+- React Query for data fetching (`@tanstack/react-query`)
+- shadcn/ui components (`frontend/components/ui/`)
+- Tailwind CSS for styling
+
+Pages:
+- `/` — Dashboard with stats cards and charts
+- `/leads` — Paginated lead table with filters
+- `/kanban` — Drag-drop stage management
+- `/duplicates` — Duplicate detection and merge UI
+- `/pipeline` — ETL run history and manual trigger
+- `/batch/[id]` — View leads from a specific extraction batch
+
+API client functions in `frontend/lib/api.ts`, types in `frontend/lib/types.ts`.
+
 ### Data Model
 
 **`leads` table** — one row per unique business
 - Dedup key: `fingerprint` = sha256(normalized_name + "|" + normalized_city)[:16]
 - Stage workflow: New → Qualified → Contacted → Follow-up → Closed-Won/Closed-Lost
+- Soft delete via `deleted_at` timestamp
 
 **Lead scoring (0-100):**
 - Business type (max 50): restaurant=50, bar=48, retail=45, salon=40, etc.
@@ -112,12 +141,17 @@ INSERT OR IGNORE into leads table (fingerprint is UNIQUE)
 - Address completeness (max 15)
 - Recency from license_date (max 15)
 
+### Database
+
+**Tables:** `leads`, `stage_history`, `seen_urls`, `pipeline_runs`, `duplicate_suggestions`, `leads_fts` (FTS5 virtual table)
+
+Query helpers in `db/queries.py`:
+- `get_leads()`, `count_leads()` — filtered queries with pagination
+- `search_leads()`, `count_search_leads()` — full-text search
+- `_build_lead_filter_clauses()` — shared filter logic (DRY helper)
+
 ### Environment
 
 - Requires `TAVILY_API_KEY` environment variable
 - Database created at `data/leads.db` on first run
 - Logs appended to `logs/pipeline.log`
-
-## Testing
-
-Tests use pytest and cover transform functions (classify, chain filter, article-title filter, scoring, dedup). Test files are in `tests/` and follow `test_*.py` naming.

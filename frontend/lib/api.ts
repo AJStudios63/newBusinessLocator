@@ -1,6 +1,7 @@
 import type {
   Lead,
   LeadsResponse,
+  LeadsBatchResponse,
   Stats,
   PipelineRun,
   PipelineStatus,
@@ -47,8 +48,8 @@ export async function getLeads(filters: LeadFilters = {}): Promise<LeadsResponse
   return fetchJson<LeadsResponse>(`${API_BASE}/leads${query ? `?${query}` : ""}`);
 }
 
-export async function getLeadsByBatch(batchId: string): Promise<LeadsResponse & { batch_id: string }> {
-  return fetchJson(`${API_BASE}/leads/batch/${encodeURIComponent(batchId)}`);
+export async function getLeadsByBatch(batchId: string): Promise<LeadsBatchResponse> {
+  return fetchJson<LeadsBatchResponse>(`${API_BASE}/leads/batch/${encodeURIComponent(batchId)}`);
 }
 
 export async function getLead(id: number): Promise<Lead> {

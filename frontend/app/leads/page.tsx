@@ -32,7 +32,6 @@ function LeadsPageContent() {
     const initial: LeadFilters = { page: 1, pageSize: 50 };
     const stage = searchParams.get("stage");
     const county = searchParams.get("county");
-    const type = searchParams.get("type");
     const q = searchParams.get("q");
     const minScore = searchParams.get("minScore");
     const maxScore = searchParams.get("maxScore");
@@ -41,7 +40,6 @@ function LeadsPageContent() {
 
     if (stage) initial.stage = stage;
     if (county) initial.county = county;
-    if (type) initial.stage = type; // Note: type filter maps to business_type
     if (q) initial.q = q;
     if (minScore) initial.minScore = parseInt(minScore);
     if (maxScore) initial.maxScore = parseInt(maxScore);
