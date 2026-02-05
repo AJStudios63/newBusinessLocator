@@ -295,6 +295,60 @@ def _extract_list_items(content: str) -> list[tuple[str, int]]:
     return results
 
 
+# Patterns for extracting business names from sentences
+_SENTENCE_PATTERNS = [
+    # "X is opening" - captures text before "is opening"
+    re.compile(r'\b([A-Z][A-Za-z\s&\']+?)\s+is\s+opening\b', re.IGNORECASE),
+    # "X will open" - captures text before "will open"
+    re.compile(r'\b([A-Z][A-Za-z\s&\']+?)\s+will\s+open\b', re.IGNORECASE),
+    # "X coming to" - captures text before "coming to"
+    re.compile(r'\b(?:A\s+new\s+)?([A-Z][A-Za-z\s&\']+?)\s+coming\s+to\b', re.IGNORECASE),
+    # "X opens" - captures text before "opens"
+    re.compile(r'\b([A-Z][A-Za-z\s&\']+?)\s+opens\b', re.IGNORECASE),
+]
+
+
+def _extract_from_sentences(content: str) -> list[tuple[str, int]]:
+    """Extract business names from sentence patterns (fallback strategy).
+
+    Matches patterns like:
+    - "Potbelly is opening..."
+    - "Velvet Taco will open..."
+    - "A new Crumbl coming to..."
+
+    Returns list of (name, line_index) tuples.
+    """
+    results = []
+    lines = content.splitlines()
+    seen_names = set()
+
+    for i, line in enumerate(lines):
+        for pattern in _SENTENCE_PATTERNS:
+            for match in pattern.finditer(line):
+                name = match.group(1).strip()
+
+                # Clean up: remove leading articles
+                name = re.sub(r'^(?:The|A|An)\s+', '', name, flags=re.IGNORECASE).strip()
+
+                # Skip if too short
+                if len(name) < 3:
+                    continue
+
+                # Skip if it looks like an article title (too long)
+                if len(name) > 60:
+                    continue
+
+                # Skip duplicates within this extraction
+                name_lower = name.lower()
+                if name_lower in seen_names:
+                    continue
+                seen_names.add(name_lower)
+
+                results.append((name, i))
+
+    return results
+
+
 def _extract_address_line(lines: list[str]) -> str | None:
     """Pick the best address-like line from a list of candidate lines.
 
