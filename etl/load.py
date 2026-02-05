@@ -64,6 +64,9 @@ def run_load(
         for record in business_records:
             if not record.get("stage"):
                 record["stage"] = "New"
+            # Ensure source_batch_id is present (can be None)
+            if "source_batch_id" not in record:
+                record["source_batch_id"] = None
 
             insert_lead(conn, record, commit=False)
             cursor = conn.execute("SELECT changes()")
