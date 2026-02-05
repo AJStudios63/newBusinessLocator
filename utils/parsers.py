@@ -362,7 +362,7 @@ def _extract_address_line(lines: list[str]) -> str | None:
     """
     # Priority 1: italic-markdown lines with a number (street address)
     for line in lines:
-        cleaned = line.lstrip("* ").strip()
+        cleaned = line.lstrip("* ").rstrip("* ").strip()
         if cleaned and re.match(r"\d", cleaned):
             return cleaned
 

@@ -656,3 +656,92 @@ Velvet Taco will open nearby. Exciting times ahead.
         names = [r["business_name"] for r in records]
         assert "Potbelly" in names
         assert "Velvet Taco" in names
+
+
+class TestParseNewsArticleIntegration:
+    """Integration tests with realistic article content."""
+
+    def test_realistic_listicle_article(self):
+        """Parses a realistic listicle-style article."""
+        content = """
+# New Businesses Coming to Williamson County in 2026
+
+Exciting news for Franklin and Brentwood residents! Several new restaurants
+and shops are planning to open in the area.
+
+## Potbelly Sandwich Shop
+*123 Main Street, Franklin, TN 37064*
+
+The popular sandwich chain is bringing its toasted subs to Cool Springs.
+Expected to open in March 2026.
+
+## Velvet Taco
+*456 Oak Avenue, Brentwood*
+
+Known for creative tacos, Velvet Taco will open its first Tennessee
+location in the Hill Center development.
+
+## Local Coffee Roasters
+A locally-owned coffee shop coming to downtown Franklin.
+"""
+        records = parse_news_article(content, "https://example.com/article", "Williamson")
+
+        assert len(records) == 3
+
+        potbelly = next(r for r in records if "Potbelly" in r["business_name"])
+        assert potbelly["address"] == "123 Main Street"
+        assert potbelly["city"] == "Franklin"
+        assert potbelly["county"] == "Williamson"
+
+        velvet = next(r for r in records if "Velvet" in r["business_name"])
+        assert velvet["city"] == "Brentwood"
+
+    def test_realistic_bullet_list_article(self):
+        """Parses article with bullet list format."""
+        content = """
+New restaurants coming to Nashville in 2026:
+
+- **Potbelly** - the sandwich chain opening in Green Hills
+- **Velvet Taco** (coming to the Gulch)
+- **Local Bistro**, a farm-to-table concept
+- **Nashville Brewing Co** opening on Broadway
+"""
+        records = parse_news_article(content, "https://example.com/article", "Davidson")
+
+        # Should extract from bold names (higher priority than list)
+        names = [r["business_name"] for r in records]
+        assert "Potbelly" in names
+        assert "Velvet Taco" in names
+        assert "Local Bistro" in names
+        assert "Nashville Brewing Co" in names
+
+    def test_each_business_becomes_separate_lead(self):
+        """Verifies each extracted business is a distinct lead record."""
+        content = """
+## Joe's Pizza
+*100 First Ave, Nashville*
+
+## Maria's Tacos
+*200 Second Ave, Franklin*
+
+## Bob's Burgers
+*300 Third Ave, Murfreesboro*
+"""
+        records = parse_news_article(content, "https://example.com/article", None)
+
+        # Each business should be a separate record
+        assert len(records) == 3
+
+        # Each record should have unique business name
+        names = [r["business_name"] for r in records]
+        assert len(set(names)) == 3  # All unique
+
+        # Each record should have the same source URL
+        urls = [r["source_url"] for r in records]
+        assert all(url == "https://example.com/article" for url in urls)
+
+        # Each can have different cities
+        cities = [r["city"] for r in records]
+        assert "Nashville" in cities
+        assert "Franklin" in cities
+        assert "Murfreesboro" in cities
