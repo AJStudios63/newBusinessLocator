@@ -557,3 +557,54 @@ New businesses opening:
         assert "a sandwich chain" not in str(names)
         assert "Velvet Taco" in names
         assert "Mexican street food" not in str(names)
+
+
+class TestParseNewsArticleSentencePatterns:
+    """Tests for sentence pattern extraction strategy (fallback)."""
+
+    def test_extracts_is_opening_pattern(self):
+        """Extracts business name from 'X is opening' pattern."""
+        content = """
+Potbelly is opening a new location in Franklin this spring.
+Velvet Taco is opening at the corner of Main and 5th.
+"""
+        records = parse_news_article(content, "https://example.com/article", None)
+
+        names = [r["business_name"] for r in records]
+        assert "Potbelly" in names
+        assert "Velvet Taco" in names
+
+    def test_extracts_will_open_pattern(self):
+        """Extracts business name from 'X will open' pattern."""
+        content = """
+Nashville Taco Co will open its doors in March.
+Franklin Brewing will open a taproom downtown.
+"""
+        records = parse_news_article(content, "https://example.com/article", None)
+
+        names = [r["business_name"] for r in records]
+        assert "Nashville Taco Co" in names
+        assert "Franklin Brewing" in names
+
+    def test_extracts_coming_to_pattern(self):
+        """Extracts business name from 'X coming to' pattern."""
+        content = """
+A new Potbelly coming to Cool Springs.
+Velvet Taco coming to downtown Nashville.
+"""
+        records = parse_news_article(content, "https://example.com/article", None)
+
+        names = [r["business_name"] for r in records]
+        assert "Potbelly" in names
+        assert "Velvet Taco" in names
+
+    def test_extracts_location_from_sentence(self):
+        """Extracts city from sentence when present."""
+        content = """
+Potbelly is opening at 123 Main St in Franklin.
+"""
+        records = parse_news_article(content, "https://example.com/article", None)
+
+        assert len(records) >= 1
+        potbelly = next(r for r in records if "Potbelly" in r["business_name"])
+        assert potbelly["city"] == "Franklin"
