@@ -5,6 +5,8 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.routers import leads
+
 app = FastAPI(
     title="New Business Locator API",
     description="API for managing POS sales leads",
@@ -19,6 +21,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(leads.router)
 
 
 @app.get("/api/health")
