@@ -494,3 +494,66 @@ class TestParseSnippet:
 
         assert records[0]["state"] == "TN"
         assert records[0]["city"] == "Nashville"
+
+
+class TestParseNewsArticleListItems:
+    """Tests for list item extraction strategy."""
+
+    def test_extracts_bullet_list_dash(self):
+        """Extracts business names from dash bullet lists."""
+        content = """
+New businesses opening:
+
+- Potbelly Sandwich Shop - opening March 2026
+- Velvet Taco (coming to Franklin)
+- Local Coffee Co, located downtown
+"""
+        records = parse_news_article(content, "https://example.com/article", None)
+
+        names = [r["business_name"] for r in records]
+        assert "Potbelly Sandwich Shop" in names
+        assert "Velvet Taco" in names
+        assert "Local Coffee Co" in names
+
+    def test_extracts_bullet_list_asterisk(self):
+        """Extracts business names from asterisk bullet lists."""
+        content = """
+* Nashville Taco Co
+* Franklin Brewing
+* Brentwood Bagels
+"""
+        records = parse_news_article(content, "https://example.com/article", None)
+
+        names = [r["business_name"] for r in records]
+        assert "Nashville Taco Co" in names
+        assert "Franklin Brewing" in names
+        assert "Brentwood Bagels" in names
+
+    def test_extracts_numbered_list(self):
+        """Extracts business names from numbered lists."""
+        content = """
+1. Potbelly Sandwich Shop
+2. Velvet Taco
+3. Nothing Bundt Cakes
+"""
+        records = parse_news_article(content, "https://example.com/article", None)
+
+        names = [r["business_name"] for r in records]
+        assert "Potbelly Sandwich Shop" in names
+        assert "Velvet Taco" in names
+        assert "Nothing Bundt Cakes" in names
+
+    def test_strips_description_after_delimiter(self):
+        """Strips description text after common delimiters."""
+        content = """
+- Potbelly - a sandwich chain opening in March
+- Velvet Taco (Mexican street food)
+- Local Coffee, expected Q2 2026
+"""
+        records = parse_news_article(content, "https://example.com/article", None)
+
+        names = [r["business_name"] for r in records]
+        assert "Potbelly" in names
+        assert "a sandwich chain" not in str(names)
+        assert "Velvet Taco" in names
+        assert "Mexican street food" not in str(names)
