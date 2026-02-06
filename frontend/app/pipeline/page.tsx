@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { getPipelineRuns, getPipelineStatus, triggerPipelineRun } from "@/lib/api";
 import { Loader2, Play, CheckCircle, XCircle, Clock } from "lucide-react";
+import { formatLocalDateTime } from "@/lib/utils";
 
 export default function PipelinePage() {
   const { data: runs, isLoading } = useQuery({
@@ -43,8 +44,7 @@ export default function PipelinePage() {
   });
 
   const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleString();
+    return formatLocalDateTime(dateStr) || "—";
   };
 
   const getStatusIcon = (status: string) => {

@@ -25,6 +25,7 @@ import { STAGES, BUSINESS_TYPES, type Lead, type Stage, type LeadFieldUpdate } f
 import { Pencil, X, Users, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { ScoreBadge } from "@/components/score-badge";
+import { formatLocalDateTime } from "@/lib/utils";
 
 interface LeadDetailPanelProps {
   lead: Lead | null;
@@ -229,9 +230,9 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
 
           <div className="text-xs text-muted-foreground space-y-1 glass-subtle rounded-lg p-3">
             <p>Fingerprint: <code className="text-[10px] font-mono text-primary/70">{lead.fingerprint}</code></p>
-            <p>Created: {new Date(lead.created_at).toLocaleString()}</p>
+            <p>Created: {formatLocalDateTime(lead.created_at)}</p>
             {lead.updated_at !== lead.created_at && (
-              <p>Updated: {new Date(lead.updated_at).toLocaleString()}</p>
+              <p>Updated: {formatLocalDateTime(lead.updated_at)}</p>
             )}
           </div>
 

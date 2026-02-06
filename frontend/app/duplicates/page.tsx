@@ -26,6 +26,7 @@ import {
 import { Loader2, RefreshCw, Check, X, GitMerge } from "lucide-react";
 import type { DuplicateSuggestion, Lead } from "@/lib/types";
 import { ScoreBadge } from "@/components/score-badge";
+import { formatLocalDate } from "@/lib/utils";
 
 const MERGEABLE_FIELDS = [
   { key: "business_name", label: "Business Name" },
@@ -187,7 +188,7 @@ export default function DuplicatesPage() {
                       <span className="text-muted-foreground font-normal">match</span>
                     </CardTitle>
                     <Badge variant="outline" className="text-xs">
-                      {new Date(suggestion.created_at).toLocaleDateString()}
+                      {formatLocalDate(suggestion.created_at)}
                     </Badge>
                   </div>
                 </CardHeader>

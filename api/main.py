@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+from dotenv import load_dotenv
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.routers import leads, stats, pipeline, kanban
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = FastAPI(
     title="New Business Locator API",

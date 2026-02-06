@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2, Play, Copy, ArrowRight, Clock, Zap, TrendingUp } from "lucide-react";
 import Link from "next/link";
+import { formatLocalDateTime } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { data: stats, isLoading } = useQuery({
@@ -134,7 +135,7 @@ export default function DashboardPage() {
                   <div>
                     <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Started</p>
                     <p className="font-medium">
-                      {new Date(stats.last_run.run_started_at).toLocaleString()}
+                      {formatLocalDateTime(stats.last_run.run_started_at)}
                     </p>
                   </div>
                   <div>
