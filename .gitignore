@@ -4,3 +4,4 @@ data/leads.db
 logs/pipeline.log
 .claude/
 .playwright-mcp/
+.env
