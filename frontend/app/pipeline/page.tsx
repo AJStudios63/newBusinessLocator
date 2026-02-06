@@ -38,8 +38,8 @@ export default function PipelinePage() {
       toast.success("Pipeline started");
       refetchStatus();
     },
-    onError: () => {
-      toast.error("Failed to start pipeline");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to start pipeline");
     },
   });
 

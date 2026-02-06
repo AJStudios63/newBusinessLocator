@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from typing import Sequence
+
+from utils.dedup import normalize_name
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +171,34 @@ def get_lead(conn: sqlite3.Connection, lead_id: int) -> dict | None:
     return dict(row) if row else None
 
 
+def _sanitize_fts_query(query: str) -> str:
+    """Sanitize a user query for safe use in an FTS5 MATCH expression.
+
+    Strips characters that have special meaning in FTS5 syntax
+    (parentheses, braces, colons, asterisks, carets, plus, tilde) and
+    escapes double quotes by doubling them.  The cleaned tokens are
+    wrapped in a quoted phrase with a trailing prefix-match wildcard.
+
+    Returns an empty string if no usable tokens remain.
+    """
+    stripped = query.strip()
+    if not stripped:
+        return ""
+    # Remove FTS5 special characters
+    cleaned = ""
+    for ch in stripped:
+        if ch in '(){}*:^~+':
+            cleaned += " "
+        elif ch == '"':
+            cleaned += '""'
+        else:
+            cleaned += ch
+    cleaned = " ".join(cleaned.split())  # collapse whitespace
+    if not cleaned:
+        return ""
+    return f'"{cleaned}"*'
+
+
 def search_leads(
     conn: sqlite3.Connection,
     query: str,
@@ -188,9 +221,9 @@ def search_leads(
     if not query or not query.strip():
         return []
 
-    # Escape special FTS5 characters and add prefix matching
-    safe_query = query.replace('"', '""').strip()
-    fts_query = f'"{safe_query}"*'
+    fts_query = _sanitize_fts_query(query)
+    if not fts_query:
+        return []
 
     sql = """
         SELECT leads.*
@@ -223,9 +256,9 @@ def count_search_leads(
     if not query or not query.strip():
         return 0
 
-    # Escape special FTS5 characters and add prefix matching
-    safe_query = query.replace('"', '""').strip()
-    fts_query = f'"{safe_query}"*'
+    fts_query = _sanitize_fts_query(query)
+    if not fts_query:
+        return 0
 
     sql = """
         SELECT COUNT(*) AS cnt
@@ -618,16 +651,7 @@ def _normalize_name(name: str | None) -> str:
     """Normalize a business name for comparison."""
     if not name:
         return ""
-    # Lowercase, remove punctuation, collapse whitespace
-    import re
-    normalized = name.lower()
-    normalized = re.sub(r"[^\w\s]", "", normalized)
-    normalized = re.sub(r"\s+", " ", normalized).strip()
-    # Remove common suffixes
-    for suffix in ("llc", "inc", "corp", "co", "ltd"):
-        if normalized.endswith(" " + suffix):
-            normalized = normalized[: -(len(suffix) + 1)]
-    return normalized
+    return normalize_name(name)
 
 
 def _levenshtein_distance(s1: str, s2: str) -> int:
@@ -733,8 +757,8 @@ def find_duplicates(
                 (id_a, id_b, score),
             )
             inserted += 1
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(f"Failed to insert duplicate suggestion ({id_a}, {id_b}): {exc}")
 
     conn.commit()
     return inserted

@@ -71,6 +71,7 @@ class TavilyClient:
         try:
             data = response.json()
         except ValueError:
+            logger.error("Failed to decode JSON from search response")
             return []
 
         results = data.get("results")
@@ -127,6 +128,7 @@ class TavilyClient:
         try:
             data = response.json()
         except ValueError:
+            logger.error(f"Failed to decode JSON from extract response for {url}")
             return None
 
         # Response format: {"results": [...], "failed_results": [...]}

@@ -45,7 +45,7 @@ newBusinessLocator/
 │   ├── __init__.py
 │   ├── tavily_client.py         # thin wrapper: .search(query, max_results) and .extract(url)
 │   ├── parsers.py               # parse_license_table() and parse_news_article()
-│   └── dedup.py                 # generate_fingerprint(name, city) → 16-char hex
+│   └── dedup.py                 # generate_fingerprint(name, city) → 32-char hex
 ├── cli/
 │   ├── __init__.py
 │   └── main.py                  # click CLI: run, leads, lead, update, stats, history, export
@@ -63,7 +63,7 @@ newBusinessLocator/
 | Column | Type | Notes |
 |---|---|---|
 | id | INTEGER PK AUTOINCREMENT | |
-| fingerprint | TEXT UNIQUE NOT NULL | sha256(normalized_name\|normalized_city)[:16] — dedup key |
+| fingerprint | TEXT UNIQUE NOT NULL | sha256(normalized_name\|normalized_city)[:32] — dedup key |
 | business_name | TEXT NOT NULL | |
 | business_type | TEXT | Classified: restaurant, bar, cafe, retail, salon, spa, bakery, etc. |
 | raw_type | TEXT | Original text from source (e.g. "Restaurant", "Retail Sales") |
@@ -191,7 +191,7 @@ Match is case-insensitive substring against `business_name`. The list is in `cha
 
 ## Deduplication Strategy (`utils/dedup.py`)
 
-The same business can appear across multiple sources (license table one week, news article the next, search snippet the week after). Dedup key = `sha256(normalized_name + "|" + normalized_city)[:16]`.
+The same business can appear across multiple sources (license table one week, news article the next, search snippet the week after). Dedup key = `sha256(normalized_name + "|" + normalized_city)[:32]`.
 
 Name normalization: lowercase → strip legal suffixes (llc, inc, corp, ltd, co, l.l.c.) → strip punctuation except hyphens → strip common words (the, and, &) → collapse whitespace.
 

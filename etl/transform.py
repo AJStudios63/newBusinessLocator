@@ -226,11 +226,13 @@ def score_lead(record: dict, scoring: dict) -> int:
         license_date = _parse_date(license_date_raw)
         if license_date is not None:
             days_ago = (datetime.datetime.today().date() - license_date).days
-            for tier in scoring.get("recency_scores", []):
-                max_days = tier.get("max_days")
-                if max_days is None or days_ago <= max_days:
-                    recency_score = tier.get("score", 0)
-                    break
+            # Future-dated licenses get no recency bonus
+            if days_ago >= 0:
+                for tier in scoring.get("recency_scores", []):
+                    max_days = tier.get("max_days")
+                    if max_days is None or days_ago <= max_days:
+                        recency_score = tier.get("score", 0)
+                        break
 
     total = type_score + source_score + addr_score + recency_score
     total = max(0, min(100, total))
@@ -342,8 +344,8 @@ def run_transform(raw_extracts: list[dict]) -> list[dict]:
         elif source_type == "search_snippet":
             parsed = parse_snippet(title, raw_content, source_url, county)
         else:
-            # Unknown source type – skip silently
-            continue
+            logger.warning(f"Unknown source_type '{source_type}' for URL {source_url}, treating as search_snippet")
+            parsed = parse_snippet(title, raw_content, source_url, county)
 
         all_records.extend(parsed)
 

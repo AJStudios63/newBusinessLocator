@@ -55,8 +55,8 @@ export function LeadTable({ leads, onRowClick }: LeadTableProps) {
       setSelectedIds(new Set());
       setBulkStage("");
     },
-    onError: () => {
-      toast.error("Failed to update leads");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update leads");
     },
   });
 
@@ -70,8 +70,8 @@ export function LeadTable({ leads, onRowClick }: LeadTableProps) {
       setSelectedIds(new Set());
       setShowDeleteDialog(false);
     },
-    onError: () => {
-      toast.error("Failed to delete leads");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to delete leads");
       setShowDeleteDialog(false);
     },
   });

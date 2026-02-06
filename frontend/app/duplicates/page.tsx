@@ -55,8 +55,8 @@ export default function DuplicatesPage() {
       queryClient.invalidateQueries({ queryKey: ["duplicatesCount"] });
       toast.success(`Found ${result.new_suggestions} new potential duplicates`);
     },
-    onError: () => {
-      toast.error("Failed to scan for duplicates");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to scan for duplicates");
     },
   });
 
@@ -67,8 +67,8 @@ export default function DuplicatesPage() {
       queryClient.invalidateQueries({ queryKey: ["duplicatesCount"] });
       toast.success("Suggestion dismissed");
     },
-    onError: () => {
-      toast.error("Failed to dismiss suggestion");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to dismiss suggestion");
     },
   });
 
@@ -104,8 +104,8 @@ export default function DuplicatesPage() {
       setSelectedSuggestion(null);
       setMergeChoices({});
     },
-    onError: () => {
-      toast.error("Failed to merge leads");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to merge leads");
     },
   });
 

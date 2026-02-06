@@ -90,10 +90,7 @@ def run_load(
         )
 
     # 4. Append a summary line to LOG_PATH (best effort).
-    try:
-        log_pipeline_run(run_id, leads_found, leads_new, leads_dupes)
-    except OSError:
-        pass
+    log_pipeline_run(run_id, leads_found, leads_new, leads_dupes)
 
     # Close the connection only if we opened it.
     if owns_connection:

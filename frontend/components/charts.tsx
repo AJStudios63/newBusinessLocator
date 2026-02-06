@@ -53,7 +53,7 @@ export function TypePieChart({ data, onSegmentClick }: TypeChartProps) {
     if (onSegmentClick) {
       onSegmentClick("type", entry.name);
     } else {
-      router.push(`/leads?type=${encodeURIComponent(entry.name)}`);
+      router.push(`/leads?q=${encodeURIComponent(entry.name)}`);
     }
   };
 

@@ -90,8 +90,8 @@ export function KanbanBoard({ data, onCardClick }: KanbanBoardProps) {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
     },
-    onError: () => {
-      toast.error("Failed to move lead");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to move lead");
     },
   });
 

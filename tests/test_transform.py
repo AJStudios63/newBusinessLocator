@@ -476,6 +476,19 @@ class TestScoreLead:
         # 10 + 8 + 0 + 0 = 18
         assert score == 18
 
+    def test_future_dated_license_gets_zero_recency(self, scoring_config):
+        """Future-dated license gets zero recency score."""
+        future_date = (datetime.now() + timedelta(days=5)).strftime("%Y-%m-%d")
+        record = {
+            "business_type": "other",
+            "source_type": "search_snippet",
+            "license_date": future_date,
+        }
+        score = score_lead(record, scoring_config)
+
+        # 10 + 8 + 0 + 0 (future date) = 18
+        assert score == 18
+
     def test_score_clamped_to_100(self, scoring_config):
         """Score is clamped to maximum of 100."""
         # Artificially inflate type score

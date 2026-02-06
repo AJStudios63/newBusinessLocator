@@ -280,6 +280,37 @@ class TestPagination:
         count = count_search_leads(populated_db, "   ")
         assert count == 0
 
+    def test_search_leads_with_double_quotes(self, populated_db):
+        """Search with double quotes doesn't crash."""
+        results = search_leads(populated_db, 'Test "Restaurant"')
+        assert isinstance(results, list)
+
+    def test_search_leads_with_parentheses(self, populated_db):
+        """Search with parentheses doesn't crash."""
+        results = search_leads(populated_db, "test (query)")
+        assert isinstance(results, list)
+
+    def test_search_leads_with_asterisks(self, populated_db):
+        """Search with asterisks doesn't crash."""
+        results = search_leads(populated_db, "test*thing")
+        assert isinstance(results, list)
+
+    def test_search_leads_with_fts_operators(self, populated_db):
+        """Search with FTS5 operator keywords doesn't crash."""
+        for query in ["restaurant AND bar", "NOT cafe", "NEAR(test, foo)"]:
+            results = search_leads(populated_db, query)
+            assert isinstance(results, list)
+
+    def test_search_leads_with_colons_and_braces(self, populated_db):
+        """Search with colons and braces doesn't crash."""
+        results = search_leads(populated_db, "business_name:test {rank}")
+        assert isinstance(results, list)
+
+    def test_count_search_leads_with_special_chars(self, populated_db):
+        """Count search with special characters doesn't crash."""
+        count = count_search_leads(populated_db, 'test "foo" (bar) *')
+        assert isinstance(count, int)
+
 
 # ---------------------------------------------------------------------------
 # Stage Management Tests

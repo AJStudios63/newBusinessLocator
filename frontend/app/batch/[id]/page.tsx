@@ -59,8 +59,8 @@ export default function BatchPage({ params }: BatchPageProps) {
       toast.success(`Updated ${result.updated.length} leads`);
       setBulkStage("");
     },
-    onError: () => {
-      toast.error("Failed to update leads");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update leads");
     },
   });
 
@@ -78,8 +78,8 @@ export default function BatchPage({ params }: BatchPageProps) {
       setShowDeleteDialog(false);
       router.push("/leads");
     },
-    onError: () => {
-      toast.error("Failed to delete leads");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to delete leads");
       setShowDeleteDialog(false);
     },
   });

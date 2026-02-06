@@ -64,6 +64,10 @@ def run_pipeline(dry_run: bool = False) -> dict:
         logger.info("Starting transform phase")
         business_records = run_transform(raw_extracts)
 
+        # --- Stamp each record with the run_id so /batch/[id] works ----------
+        for rec in business_records:
+            rec["source_batch_id"] = run_id
+
         # --- LOAD (skip on dry_run) -----------------------------------------
         if dry_run:
             logger.info(f"Dry run completed: {len(business_records)} leads found")
@@ -96,7 +100,7 @@ def run_pipeline(dry_run: bool = False) -> dict:
     except Exception as exc:
         # --- record the failure in the DB and log (if we have a run_id) -----
         error_msg = str(exc)
-        logger.error(f"Pipeline failed: {error_msg}")
+        logger.error("Pipeline failed", exc_info=True)
         if run_id is not None and conn is not None:
             try:
                 update_pipeline_run(conn, run_id, status="failed", leads_found=0, leads_new=0, leads_dupes=0, error_message=error_msg)

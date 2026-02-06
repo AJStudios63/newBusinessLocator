@@ -107,16 +107,22 @@ FastAPI backend at `api/` with routers:
 - `api/routers/pipeline.py` — trigger ETL runs
 
 Key API patterns:
-- Pagination via `page` and `pageSize` query params (1-indexed)
+- Pagination via `page` and `pageSize` query params (1-indexed, not 0-indexed)
 - Filters: `stage`, `county`, `minScore`, `maxScore`, `q` (full-text search)
-- Database connection via `Depends(get_db)` from `api/dependencies.py`
+- Database connection via `Depends(get_db)` from `api/dependencies.py` — one connection per request, auto-closed
+- CORS allows `http://localhost:3000` only (hardcoded in `api/main.py`)
+- No ORM — raw SQL with bound parameters in `db/queries.py`
 
 ### Frontend
 
 Next.js 14 app at `frontend/` using:
-- React Query for data fetching (`@tanstack/react-query`)
-- shadcn/ui components (`frontend/components/ui/`)
-- Tailwind CSS for styling
+- React Query v5 for data fetching (staleTime: 5s, refetchOnWindowFocus: false)
+- shadcn/ui components (`frontend/components/ui/`) built on Radix UI primitives
+- Tailwind CSS with glassmorphism design system
+- next-themes for dark/light mode (dark default)
+- dnd-kit for Kanban drag-drop
+- Recharts for data visualization
+- Sonner for toast notifications
 
 Pages:
 - `/` — Dashboard with stats cards and charts
@@ -128,10 +134,23 @@ Pages:
 
 API client functions in `frontend/lib/api.ts`, types in `frontend/lib/types.ts`.
 
+### Frontend Design System
+
+The UI uses a glassmorphism design language with blue-indigo accent gradients. Key CSS utility classes defined in `globals.css`:
+- `.glass` / `.glass-strong` / `.glass-subtle` — backdrop-blur panels with varying intensity
+- `.bg-mesh` — radial gradient mesh background (adapts to dark/light)
+- `.bg-accent-gradient` / `.text-gradient` — blue-to-purple gradient effects
+- `.glow-hover` — cards emit subtle glow on hover
+- `.custom-scrollbar` — thin styled scrollbar
+
+Design tokens use HSL CSS custom properties. Both light and dark modes define `--glass-bg`, `--glass-border`, `--glass-blur`, `--glass-shadow` tokens. The `Card` component applies glass effects by default.
+
+Theme toggle in the sidebar uses `next-themes` with a `mounted` guard to avoid hydration mismatch (server doesn't know resolved theme).
+
 ### Data Model
 
 **`leads` table** — one row per unique business
-- Dedup key: `fingerprint` = sha256(normalized_name + "|" + normalized_city)[:16]
+- Dedup key: `fingerprint` = sha256(normalized_name + "|" + normalized_city)[:32]
 - Stage workflow: New → Qualified → Contacted → Follow-up → Closed-Won/Closed-Lost
 - Soft delete via `deleted_at` timestamp
 
@@ -145,6 +164,8 @@ API client functions in `frontend/lib/api.ts`, types in `frontend/lib/types.ts`.
 
 **Tables:** `leads`, `stage_history`, `seen_urls`, `pipeline_runs`, `duplicate_suggestions`, `leads_fts` (FTS5 virtual table)
 
+`db/schema.py` `init_db()` handles creation: connects with 30s busy timeout, runs DDL, sets `row_factory = sqlite3.Row`. FTS5 index is kept in sync via SQLite triggers on insert/update/delete.
+
 Query helpers in `db/queries.py`:
 - `get_leads()`, `count_leads()` — filtered queries with pagination
 - `search_leads()`, `count_search_leads()` — full-text search
@@ -155,3 +176,4 @@ Query helpers in `db/queries.py`:
 - Requires `TAVILY_API_KEY` environment variable
 - Database created at `data/leads.db` on first run
 - Logs appended to `logs/pipeline.log`
+- `scripts/com.newbusinesslocator.weekly.plist` — macOS LaunchAgent for scheduled weekly runs

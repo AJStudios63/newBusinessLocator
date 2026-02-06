@@ -33,7 +33,8 @@ from db.queries import (
 
 router = APIRouter(prefix="/api/leads", tags=["leads"])
 
-VALID_STAGES = ["New", "Qualified", "Contacted", "Follow-up", "Closed-Won", "Closed-Lost"]
+MAX_PAGE_SIZE = 200
+VALID_STAGES = {"New", "Qualified", "Contacted", "Follow-up", "Closed-Won", "Closed-Lost"}
 VALID_BUSINESS_TYPES = ["restaurant", "bar", "retail", "salon", "cafe", "bakery", "gym", "spa", "other"]
 
 
@@ -75,8 +76,11 @@ def list_leads(
     # Use pageSize if provided, otherwise fall back to limit
     effective_limit = page_size if page_size is not None else limit
 
-    if effective_limit < 1:
-        raise HTTPException(status_code=400, detail="pageSize must be >= 1")
+    if effective_limit < 1 or effective_limit > MAX_PAGE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"pageSize must be between 1 and {MAX_PAGE_SIZE}",
+        )
 
     offset = (page - 1) * effective_limit
 

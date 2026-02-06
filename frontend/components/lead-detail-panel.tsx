@@ -42,6 +42,7 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    let cancelled = false;
     if (lead) {
       setIsEditing(false);
       setEditedFields({});
@@ -49,12 +50,17 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
       setNote("");
       if (lead.source_batch_id) {
         getLeadsByBatch(lead.source_batch_id).then((data) => {
-          setBatchCount(data.count > 1 ? data.count - 1 : null);
-        }).catch(() => setBatchCount(null));
+          if (!cancelled) {
+            setBatchCount(data.count > 1 ? data.count - 1 : null);
+          }
+        }).catch(() => {
+          if (!cancelled) setBatchCount(null);
+        });
       } else {
         setBatchCount(null);
       }
     }
+    return () => { cancelled = true; };
   }, [lead]);
 
   const stageMutation = useMutation({
@@ -72,8 +78,8 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
       setNote("");
       onClose();
     },
-    onError: () => {
-      toast.error("Failed to update lead");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update lead");
     },
   });
 
@@ -86,8 +92,8 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
       setIsEditing(false);
       setEditedFields({});
     },
-    onError: () => {
-      toast.error("Failed to update lead fields");
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to update lead fields");
     },
   });
 
