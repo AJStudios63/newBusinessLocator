@@ -31,6 +31,26 @@ counties:
   Dickson:
     - Dickson
     - White Bluff
+  Cheatham:
+    - Ashland City
+    - Kingston Springs
+    - Pleasant View
+    - Pegram
+  Montgomery:
+    - Clarksville
+  Coffee:
+    - Manchester
+    - Tullahoma
+  Franklin:
+    - Winchester
+    - Decherd
+    - Cowan
+    - Estill Springs
+  Putnam:
+    - Cookeville
+    - Algood
+    - Baxter
+    - Monterey
 
 # Domain filtering
 extractable_domains:
@@ -42,6 +62,7 @@ extractable_domains:
   - robertsoncountysource.com
   - maurycountysource.com
   - dicksoncountysource.com
+  - cheathamcountysource.com
   # Local news
   - wsmv.com
   - fox17.com
@@ -61,6 +82,8 @@ extractable_domains:
   - wilcosun.com
   - newschannel5.com
   - wtvf.com
+  - clarksvilleonline.com
+  - tullahomanews.com
   # Business listings
   - yelp.com
   - gallatintn.gov
@@ -90,6 +113,9 @@ queries:
   - query: "site:sumnercountysource.com new business licenses"
     county: Sumner
     tier: A
+  - query: "site:cheathamcountysource.com new business licenses"
+    county: Cheatham
+    tier: A
 
   # Tier B — News Articles (one per county/major city)
   - query: "new business opening Nashville 2026"
@@ -110,12 +136,30 @@ queries:
   - query: "new business opening Lebanon Mount Juliet Wilson County 2026"
     county: Wilson
     tier: B
+  - query: "new business opening Clarksville Montgomery County Tennessee 2026"
+    county: Montgomery
+    tier: B
+  - query: "new business opening Cookeville Algood Putnam County Tennessee 2026"
+    county: Putnam
+    tier: B
+  - query: "new business opening Manchester Tullahoma Coffee County Tennessee 2026"
+    county: Coffee
+    tier: B
+  - query: "new business opening Winchester Decherd Franklin County Tennessee 2026"
+    county: Franklin
+    tier: B
+  - query: "new business opening Ashland City Kingston Springs Cheatham County Tennessee 2026"
+    county: Cheatham
+    tier: B
 
   # Tier C — Type Sweeps
-  - query: "new bar cafe opening Middle Tennessee Nashville area 2026"
+  - query: "new bar cafe opening Middle Tennessee Nashville Clarksville Cookeville 2026"
     county: null
     tier: C
-  - query: "new salon spa beauty opening Nashville Franklin Murfreesboro 2026"
+  - query: "new salon spa beauty opening Nashville Franklin Murfreesboro Clarksville 2026"
+    county: null
+    tier: C
+  - query: "new restaurant retail opening Clarksville Cookeville Manchester Middle Tennessee 2026"
     county: null
     tier: C
 
@@ -153,3 +197,9 @@ direct_extract_urls:
   # Dickson County
   - url: "https://dicksoncountysource.com/dickson-county-new-business-licenses-for-jan-28-2026/"
     county: Dickson
+
+  # Cheatham County
+  - url: "https://cheathamcountysource.com/cheatham-county-new-business-licenses-for-sept-22-2025/"
+    county: Cheatham
+  - url: "https://cheathamcountysource.com/cheatham-county-new-business-licenses-for-july-21-2025/"
+    county: Cheatham
