@@ -5,32 +5,49 @@ counties:
     - Antioch
     - Madison
     - Hermitage
+    - Goodlettsville
+    - Old Hickory
+    - Joelton
+    - Whites Creek
   Williamson:
     - Franklin
     - Brentwood
     - Nolensville
     - Spring Hill
+    - Fairview
+    - Thompson's Station
+    - Arrington
   Rutherford:
     - Murfreesboro
     - Smyrna
     - La Vergne
+    - Eagleville
   Sumner:
     - Gallatin
     - Hendersonville
     - Portland
+    - Westmoreland
+    - Millersville
+    - White House
   Wilson:
     - Lebanon
     - Mount Juliet
+    - Watertown
   Robertson:
     - Springfield
     - White House
     - Greenbrier
+    - Cross Plains
+    - Coopertown
   Maury:
     - Columbia
     - Mt. Pleasant
+    - Spring Hill
   Dickson:
     - Dickson
     - White Bluff
+    - Burns
+    - Charlotte
   Cheatham:
     - Ashland City
     - Kingston Springs
@@ -69,6 +86,8 @@ extractable_domains:
   - wkrn.com
   - franklinis.com
   - tennessean.com
+  - rutherfordsource.com
+  - boropulse.com
   # Nashville lifestyle/food sites
   - nashvilleguru.com
   - visitmusiccity.com
@@ -84,6 +103,12 @@ extractable_domains:
   - wtvf.com
   - clarksvilleonline.com
   - tullahomanews.com
+  - clarksvillenow.com
+  - mainstreetmediatn.com
+  - cookevillesocial.com
+  - 3bmedianews.com
+  - goodnewsmags.com
+  - 931go.com
   # Business listings
   - yelp.com
   - gallatintn.gov
@@ -110,11 +135,17 @@ queries:
   - query: "site:wilsoncountysource.com new business licenses"
     county: Wilson
     tier: A
-  - query: "site:sumnercountysource.com new business licenses"
-    county: Sumner
-    tier: A
   - query: "site:cheathamcountysource.com new business licenses"
     county: Cheatham
+    tier: A
+  - query: "site:robertsoncountysource.com new business licenses"
+    county: Robertson
+    tier: A
+  - query: "site:maurycountysource.com new business licenses"
+    county: Maury
+    tier: A
+  - query: "site:dicksoncountysource.com new business licenses"
+    county: Dickson
     tier: A
 
   # Tier B — News Articles (one per county/major city)
@@ -127,10 +158,22 @@ queries:
   - query: "new business opening Franklin Brentwood Williamson County 2026"
     county: Williamson
     tier: B
-  - query: "new business opening Murfreesboro Smyrna Rutherford County 2026"
+  - query: "new business opening Murfreesboro Smyrna Rutherford County Tennessee 2026"
     county: Rutherford
     tier: B
-  - query: "new business opening Gallatin Hendersonville Sumner County 2026"
+  - query: "new restaurant store salon opening Murfreesboro Smyrna La Vergne Tennessee 2026"
+    county: Rutherford
+    tier: B
+  - query: "site:boropulse.com new business opening Murfreesboro 2025 2026"
+    county: Rutherford
+    tier: B
+  - query: "site:rutherfordsource.com new business opening Murfreesboro 2025 2026"
+    county: Rutherford
+    tier: B
+  - query: "new business opening Gallatin Hendersonville Sumner County Tennessee 2026"
+    county: Sumner
+    tier: B
+  - query: "new restaurant store salon opening Gallatin Hendersonville Portland Tennessee 2026"
     county: Sumner
     tier: B
   - query: "new business opening Lebanon Mount Juliet Wilson County 2026"
@@ -139,17 +182,44 @@ queries:
   - query: "new business opening Clarksville Montgomery County Tennessee 2026"
     county: Montgomery
     tier: B
+  - query: "new restaurant store salon opening Clarksville Tennessee 2025 2026"
+    county: Montgomery
+    tier: B
+  - query: "site:clarksvillenow.com new business opening 2025 2026"
+    county: Montgomery
+    tier: B
   - query: "new business opening Cookeville Algood Putnam County Tennessee 2026"
+    county: Putnam
+    tier: B
+  - query: "new restaurant store salon opening Cookeville Tennessee 2025 2026"
     county: Putnam
     tier: B
   - query: "new business opening Manchester Tullahoma Coffee County Tennessee 2026"
     county: Coffee
     tier: B
+  - query: "new restaurant store salon opening Tullahoma Manchester Tennessee 2025 2026"
+    county: Coffee
+    tier: B
+  - query: "site:tullahomanews.com new business opening 2025 2026"
+    county: Coffee
+    tier: B
   - query: "new business opening Winchester Decherd Franklin County Tennessee 2026"
+    county: Franklin
+    tier: B
+  - query: "new restaurant store salon opening Winchester Decherd Estill Springs Tennessee 2025 2026"
     county: Franklin
     tier: B
   - query: "new business opening Ashland City Kingston Springs Cheatham County Tennessee 2026"
     county: Cheatham
+    tier: B
+  - query: "new business opening Columbia Maury County Tennessee 2026"
+    county: Maury
+    tier: B
+  - query: "new business opening Springfield Robertson County Tennessee 2026"
+    county: Robertson
+    tier: B
+  - query: "new business opening Dickson White Bluff Dickson County Tennessee 2026"
+    county: Dickson
     tier: B
 
   # Tier C — Type Sweeps
