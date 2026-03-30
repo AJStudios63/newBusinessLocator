@@ -3,6 +3,7 @@ TN County Clerk business list scraper.
 
 Fetches new business license data from secure.tncountyclerk.com/businesslist
 using a 3-step session flow: county selection → form page → date-range search.
+SSL verification is enforced (requests default) and should not be disabled.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from utils.logging_config import get_logger
 logger = get_logger("clerk_scraper")
 
 BASE_URL = "https://secure.tncountyclerk.com"
+REQUEST_TIMEOUT = 30  # seconds per HTTP request
 
 
 class ClerkScraper:
@@ -22,10 +24,9 @@ class ClerkScraper:
 
     def __init__(self):
         self.base_url = BASE_URL
-        self.session = requests.Session()
-        self.session.headers.update({
+        self._headers = {
             "User-Agent": "NewBusinessLocator/1.0 (ETL Pipeline)",
-        })
+        }
 
     def fetch_county(
         self,
@@ -59,12 +60,13 @@ class ClerkScraper:
         """
         # Create a fresh session per county to avoid stale PHP session cookies
         session = requests.Session()
-        session.headers.update(self.session.headers)
+        session.headers.update(self._headers)
 
         # Step 1: GET county page to establish session and get renewalToken
         logger.debug(f"Step 1: Selecting county {county_code}")
         resp1 = session.get(
-            f"{self.base_url}/index.php?countylist={county_code}"
+            f"{self.base_url}/index.php?countylist={county_code}",
+            timeout=REQUEST_TIMEOUT,
         )
         resp1.raise_for_status()
 
@@ -82,6 +84,7 @@ class ClerkScraper:
                 "countylist": county_code,
                 "renewalToken": renewal_token,
             },
+            timeout=REQUEST_TIMEOUT,
         )
         resp2.raise_for_status()
 
@@ -104,6 +107,7 @@ class ClerkScraper:
                 "orderbyvalue": "ASC",
                 "countylist": county_code,
             },
+            timeout=REQUEST_TIMEOUT,
         )
         resp3.raise_for_status()
 

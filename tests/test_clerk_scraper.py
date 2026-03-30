@@ -109,9 +109,10 @@ def _make_mock_session(results_html=RESULTS_HTML):
 class TestClerkScraperInit:
     """Test ClerkScraper initialization."""
 
-    def test_creates_session(self):
+    def test_has_headers(self):
         scraper = ClerkScraper()
-        assert scraper.session is not None
+        assert scraper._headers is not None
+        assert "User-Agent" in scraper._headers
 
     def test_base_url(self):
         scraper = ClerkScraper()

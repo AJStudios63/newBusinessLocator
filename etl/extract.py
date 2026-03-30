@@ -31,8 +31,9 @@ logger = get_logger("extract")
 #     "raw_content" : str   — extracted page content or search snippet
 #     "source_url"  : str
 #     "county"      : str | None
-#     "source_type" : str   — 'license_table', 'news_article', or 'search_snippet'
+#     "source_type" : str   — 'license_table', 'clerk_table', 'news_article', or 'search_snippet'
 #     "title"       : str   — page title
+#     "clerk_rows"  : list[dict] | None — pre-parsed rows from clerk portal (clerk_table only)
 # }
 
 

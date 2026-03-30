@@ -767,10 +767,10 @@ class TestParseClerkTable:
 
         assert len(records) == 1
         rec = records[0]
-        assert rec["business_name"] == "TACO FIESTA"
+        assert rec["business_name"] == "Taco Fiesta"
         assert rec["raw_type"] == "RESTAURANT"
         assert rec["address"] == "123 MAIN ST"
-        assert rec["city"] == "NASHVILLE"
+        assert rec["city"] == "Nashville"
         assert rec["state"] == "TN"
         assert rec["zip_code"] == "37201"
         assert rec["county"] == "Davidson"
@@ -800,8 +800,8 @@ class TestParseClerkTable:
 
         records = parse_clerk_table(rows, county="Davidson")
         assert len(records) == 2
-        assert records[0]["business_name"] == "TACO FIESTA"
-        assert records[1]["business_name"] == "GLAMOUR NAILS"
+        assert records[0]["business_name"] == "Taco Fiesta"
+        assert records[1]["business_name"] == "Glamour Nails"
 
     def test_empty_rows_returns_empty_list(self):
         from utils.parsers import parse_clerk_table
@@ -840,7 +840,7 @@ class TestParseClerkTable:
 
         records = parse_clerk_table(rows, county="Davidson")
         assert len(records) == 1
-        assert records[0]["city"] == "NASHVILLE"
+        assert records[0]["city"] == "Nashville"
         assert records[0]["state"] == "TN"
         assert records[0]["zip_code"] is None
 

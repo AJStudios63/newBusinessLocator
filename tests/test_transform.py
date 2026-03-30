@@ -800,7 +800,7 @@ class TestParserRouting:
         assert record["raw_type"] == "Cafe"
         assert record["source_type"] == "clerk_table"
         assert record["address"] == "123 MAIN ST"
-        assert record["city"] == "NASHVILLE"
+        assert record["city"] == "Nashville"
         assert record["state"] == "TN"
         assert record["zip_code"] == "37201"
         assert record["county"] == "Davidson"

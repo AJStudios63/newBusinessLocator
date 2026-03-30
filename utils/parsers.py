@@ -28,6 +28,19 @@ def _empty_record(source_url: str, source_type: str, county: str | None = None) 
     }
 
 
+def _title_case(text: str) -> str:
+    """Title-case text, handling apostrophes correctly.
+
+    Python's str.title() capitalizes after apostrophes (e.g., "JOE'S" → "Joe'S").
+    This function handles that edge case: "JOE'S CAFE" → "Joe's Cafe".
+    """
+    return re.sub(
+        r"[A-Za-z]+('[A-Za-z]+)?",
+        lambda m: m.group(0).capitalize(),
+        text,
+    )
+
+
 def _split_address_parts(address_str: str) -> tuple[str | None, str | None, str | None]:
     """Best-effort split of a combined address string into (address, city, zip).
 
@@ -551,7 +564,7 @@ def parse_clerk_table(
             continue
 
         rec = _empty_record(source_url, "clerk_table", county)
-        rec["business_name"] = name
+        rec["business_name"] = _title_case(name)
         rec["raw_type"] = row.get("product", "").strip() or None
         rec["license_date"] = row.get("date", "").strip() or None
 
@@ -591,7 +604,7 @@ def _split_clerk_address(address: str) -> tuple[str | None, str | None, str | No
         remainder = parts[1].strip()
         # Strip state abbreviation and zip from remainder to get city
         city = re.sub(r"\s+TN\b.*$", "", remainder, flags=re.IGNORECASE).strip()
-        city = city if city else None
+        city = city.title() if city else None
         return street, city, zip_code
 
     # Fallback: try comma splitting
