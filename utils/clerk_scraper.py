@@ -57,9 +57,13 @@ class ClerkScraper:
         Exception
             If any HTTP request fails.
         """
+        # Create a fresh session per county to avoid stale PHP session cookies
+        session = requests.Session()
+        session.headers.update(self.session.headers)
+
         # Step 1: GET county page to establish session and get renewalToken
         logger.debug(f"Step 1: Selecting county {county_code}")
-        resp1 = self.session.get(
+        resp1 = session.get(
             f"{self.base_url}/index.php?countylist={county_code}"
         )
         resp1.raise_for_status()
@@ -72,7 +76,7 @@ class ClerkScraper:
 
         # Step 2: POST to business list page to get search form token
         logger.debug(f"Step 2: Loading search form for county {county_code}")
-        resp2 = self.session.post(
+        resp2 = session.post(
             f"{self.base_url}/businesslist/index.php",
             data={
                 "countylist": county_code,
@@ -89,7 +93,7 @@ class ClerkScraper:
 
         # Step 3: POST date-range search
         logger.debug(f"Step 3: Searching {start_date} to {end_date} for county {county_code}")
-        resp3 = self.session.post(
+        resp3 = session.post(
             f"{self.base_url}/businesslist/searchResults.php",
             data={
                 "token": search_token,

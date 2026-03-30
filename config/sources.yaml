@@ -72,15 +72,10 @@ counties:
 # TN County Clerk portal (secure.tncountyclerk.com/businesslist)
 # Only counties that have the business list feature are listed here.
 # Code is the numeric county ID used by the portal.
+# Only Davidson has populated data in the portal as of 2026-03.
+# Other counties (Williamson, Wilson, etc.) show the search form but return 0 rows.
 clerk_counties:
   Davidson: 19
-  Williamson: 94
-  Wilson: 95
-  Robertson: 74
-  Maury: 60
-  Dickson: 22
-  Cheatham: 11
-  Montgomery: 63
 
 # Domain filtering
 extractable_domains:
@@ -146,6 +141,27 @@ blocked_domains:
 # Search queries organized by tier
 # Each query has: query (the search string), county (metadata, null if multi-county), tier (A/B/C)
 queries:
+  # Tier A — License Tables (for counties without clerk portal data)
+  # Davidson uses clerk_counties scraper instead.
+  - query: "site:williamsonsource.com new business licenses"
+    county: Williamson
+    tier: A
+  - query: "site:wilsoncountysource.com new business licenses"
+    county: Wilson
+    tier: A
+  - query: "site:cheathamcountysource.com new business licenses"
+    county: Cheatham
+    tier: A
+  - query: "site:robertsoncountysource.com new business licenses"
+    county: Robertson
+    tier: A
+  - query: "site:maurycountysource.com new business licenses"
+    county: Maury
+    tier: A
+  - query: "site:dicksoncountysource.com new business licenses"
+    county: Dickson
+    tier: A
+
   # Tier B — News Articles (one per county/major city)
   - query: "new business opening Nashville 2026"
     county: Davidson
