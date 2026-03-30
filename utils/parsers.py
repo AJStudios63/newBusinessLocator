@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
+
+import yaml
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +183,10 @@ def parse_license_table(content: str, source_url: str, county: str | None = None
         if rec["business_name"].lower() in {h.lower() for h in raw_headers}:
             continue
 
+        # If city wasn't parsed from address, try to detect it from the full address string
+        if not rec["city"] and rec["address"]:
+            rec["city"] = _find_tn_city(rec["address"])
+
         # Default state to TN (Nashville-area pipeline assumption)
         if rec["address"] or rec["city"]:
             rec["state"] = "TN"
@@ -192,14 +199,30 @@ def parse_license_table(content: str, source_url: str, county: str | None = None
 # ---------------------------------------------------------------------------
 
 
-# Known Nashville-area city names used by multiple parsers
-_TN_CITIES = [
+# Known Nashville-area city names — derived from sources.yaml at import time
+def _load_tn_cities() -> list[str]:
+    """Build city list from sources.yaml county→city mapping."""
+    from config.settings import SOURCES_YAML
+    try:
+        with open(SOURCES_YAML, "r", encoding="utf-8") as fh:
+            sources = yaml.safe_load(fh)
+        cities = []
+        for county_cities in (sources or {}).get("counties", {}).values():
+            cities.extend(county_cities)
+        return cities if cities else _TN_CITIES_FALLBACK
+    except Exception:
+        return _TN_CITIES_FALLBACK
+
+# Fallback if sources.yaml is unavailable
+_TN_CITIES_FALLBACK = [
     "Nashville", "Franklin", "Brentwood", "Murfreesboro", "Gallatin",
     "Hendersonville", "Lebanon", "Smyrna", "Goodlettsville", "Madison",
     "Antioch", "Hermitage", "Spring Hill", "Columbia",
     "Shelbyville", "McMinnville", "Cookeville", "Clarksville",
     "Dickson", "Springfield", "Carthage", "Tullahoma", "Pulaski",
 ]
+
+_TN_CITIES = _load_tn_cities()
 
 
 def _find_tn_city(text: str) -> str | None:
@@ -495,6 +518,85 @@ def parse_news_article(content: str, source_url: str, county: str | None = None)
         return _build_records_from_names(sentence_names, lines, source_url, county)
 
     return []
+
+
+# ---------------------------------------------------------------------------
+
+
+def parse_clerk_table(
+    rows: list[dict],
+    county: str | None = None,
+    county_code: int | None = None,
+) -> list[dict]:
+    """Convert raw clerk scraper dicts into BusinessRecord dicts.
+
+    Each input dict has keys: business_name, product, address, owner, date.
+    The address format is typically "STREET  CITY ST ZIP" (double-space separated).
+
+    Parameters
+    ----------
+    rows : list[dict]
+        Raw dicts from ClerkScraper.fetch_county().
+    county : str | None
+        County name for all records.
+    county_code : int | None
+        County code (used in source_url).
+    """
+    source_url = f"https://secure.tncountyclerk.com/businesslist/{county or county_code}"
+    records = []
+
+    for row in rows:
+        name = row.get("business_name", "").strip()
+        if not name:
+            continue
+
+        rec = _empty_record(source_url, "clerk_table", county)
+        rec["business_name"] = name
+        rec["raw_type"] = row.get("product", "").strip() or None
+        rec["license_date"] = row.get("date", "").strip() or None
+
+        # Parse address: typically "123 MAIN ST  NASHVILLE TN 37201"
+        raw_addr = row.get("address", "").strip()
+        if raw_addr:
+            street, city, zip_code = _split_clerk_address(raw_addr)
+            rec["address"] = street
+            rec["city"] = city
+            rec["zip_code"] = zip_code
+            rec["state"] = "TN"
+
+        records.append(rec)
+
+    return records
+
+
+def _split_clerk_address(address: str) -> tuple[str | None, str | None, str | None]:
+    """Split a clerk portal address like '123 MAIN ST  NASHVILLE TN 37201'.
+
+    The format uses double-space between street and city, then 'TN' state
+    abbreviation followed by optional ZIP code.
+
+    Returns (street, city, zip_code).
+    """
+    if not address:
+        return None, None, None
+
+    # Extract ZIP code
+    zip_match = re.search(r"\b(\d{5}(?:-\d{4})?)\b", address)
+    zip_code = zip_match.group(1) if zip_match else None
+
+    # Try splitting on double-space (common clerk format)
+    parts = re.split(r"\s{2,}", address)
+    if len(parts) >= 2:
+        street = parts[0].strip() or None
+        remainder = parts[1].strip()
+        # Strip state abbreviation and zip from remainder to get city
+        city = re.sub(r"\s+TN\b.*$", "", remainder, flags=re.IGNORECASE).strip()
+        city = city if city else None
+        return street, city, zip_code
+
+    # Fallback: try comma splitting
+    street, city, zip_code_fallback = _split_address_parts(address)
+    return street, city, zip_code or zip_code_fallback
 
 
 # ---------------------------------------------------------------------------

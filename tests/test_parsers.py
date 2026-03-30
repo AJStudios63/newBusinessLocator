@@ -745,3 +745,118 @@ New restaurants coming to Nashville in 2026:
         assert "Nashville" in cities
         assert "Franklin" in cities
         assert "Murfreesboro" in cities
+
+
+class TestParseClerkTable:
+    """Tests for parse_clerk_table()."""
+
+    def test_parses_single_row(self):
+        from utils.parsers import parse_clerk_table
+
+        rows = [
+            {
+                "business_name": "TACO FIESTA",
+                "product": "RESTAURANT",
+                "address": "123 MAIN ST  NASHVILLE TN 37201",
+                "owner": "JOHN DOE",
+                "date": "2026-03-15",
+            }
+        ]
+
+        records = parse_clerk_table(rows, county="Davidson")
+
+        assert len(records) == 1
+        rec = records[0]
+        assert rec["business_name"] == "TACO FIESTA"
+        assert rec["raw_type"] == "RESTAURANT"
+        assert rec["address"] == "123 MAIN ST"
+        assert rec["city"] == "NASHVILLE"
+        assert rec["state"] == "TN"
+        assert rec["zip_code"] == "37201"
+        assert rec["county"] == "Davidson"
+        assert rec["license_date"] == "2026-03-15"
+        assert rec["source_type"] == "clerk_table"
+        assert "tncountyclerk.com" in rec["source_url"]
+
+    def test_parses_multiple_rows(self):
+        from utils.parsers import parse_clerk_table
+
+        rows = [
+            {
+                "business_name": "TACO FIESTA",
+                "product": "RESTAURANT",
+                "address": "123 MAIN ST  NASHVILLE TN 37201",
+                "owner": "JOHN DOE",
+                "date": "2026-03-15",
+            },
+            {
+                "business_name": "GLAMOUR NAILS",
+                "product": "NAIL SALON",
+                "address": "456 ELM AVE  FRANKLIN TN 37064",
+                "owner": "JANE SMITH",
+                "date": "2026-03-20",
+            },
+        ]
+
+        records = parse_clerk_table(rows, county="Davidson")
+        assert len(records) == 2
+        assert records[0]["business_name"] == "TACO FIESTA"
+        assert records[1]["business_name"] == "GLAMOUR NAILS"
+
+    def test_empty_rows_returns_empty_list(self):
+        from utils.parsers import parse_clerk_table
+
+        records = parse_clerk_table([], county="Davidson")
+        assert records == []
+
+    def test_skips_rows_with_no_business_name(self):
+        from utils.parsers import parse_clerk_table
+
+        rows = [
+            {
+                "business_name": "",
+                "product": "RESTAURANT",
+                "address": "123 MAIN ST  NASHVILLE TN 37201",
+                "owner": "JOHN DOE",
+                "date": "2026-03-15",
+            }
+        ]
+
+        records = parse_clerk_table(rows, county="Davidson")
+        assert records == []
+
+    def test_address_parsing_without_zip(self):
+        from utils.parsers import parse_clerk_table
+
+        rows = [
+            {
+                "business_name": "BOB'S BURGERS",
+                "product": "RESTAURANT",
+                "address": "789 OAK DR  NASHVILLE TN",
+                "owner": "BOB",
+                "date": "2026-03-22",
+            }
+        ]
+
+        records = parse_clerk_table(rows, county="Davidson")
+        assert len(records) == 1
+        assert records[0]["city"] == "NASHVILLE"
+        assert records[0]["state"] == "TN"
+        assert records[0]["zip_code"] is None
+
+    def test_source_url_includes_county(self):
+        from utils.parsers import parse_clerk_table
+
+        rows = [
+            {
+                "business_name": "TEST BIZ",
+                "product": "RETAIL",
+                "address": "1 ST  FRANKLIN TN 37064",
+                "owner": "X",
+                "date": "2026-01-01",
+            }
+        ]
+
+        records = parse_clerk_table(rows, county="Williamson")
+        assert "tncountyclerk.com" in records[0]["source_url"]
+        assert "Williamson" in records[0]["source_url"] or "94" in records[0]["source_url"]
