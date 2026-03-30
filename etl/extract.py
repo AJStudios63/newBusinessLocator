@@ -9,15 +9,17 @@ extracts qualifying pages, and returns structured RawExtract dicts.
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 import yaml
 
 from config.settings import SOURCES_YAML, DB_PATH
 from utils.tavily_client import TavilyClient
+from utils.clerk_scraper import ClerkScraper
 from utils.logging_config import get_logger
 from db.schema import init_db
-from db.queries import get_seen_urls
+from db.queries import get_seen_urls, get_cached_search, set_cached_search
 
 logger = get_logger("extract")
 
@@ -44,8 +46,16 @@ def _get_domain(url: str) -> str:
 
 def _load_sources() -> dict:
     """Load and return the parsed contents of sources.yaml as a dict."""
-    with open(SOURCES_YAML, "r", encoding="utf-8") as fh:
-        return yaml.safe_load(fh)
+    try:
+        with open(SOURCES_YAML, "r", encoding="utf-8") as fh:
+            data = yaml.safe_load(fh)
+    except FileNotFoundError:
+        raise RuntimeError(f"Config file not found: {SOURCES_YAML}")
+    except yaml.YAMLError as e:
+        raise RuntimeError(f"Invalid YAML in {SOURCES_YAML}: {e}")
+    if not isinstance(data, dict):
+        raise RuntimeError(f"Expected dict in {SOURCES_YAML}, got {type(data).__name__}")
+    return data
 
 
 def _validate_sources(sources: dict) -> None:
@@ -194,6 +204,7 @@ def run_extract(
                 extracted = client.extract(url)
                 if extracted is None:
                     logger.warning(f"Failed to extract direct URL: {url}")
+                    processed_this_run.add(url)  # prevent retry on next run
                     continue
 
                 extracted_content: str = extracted.get("content", "")
@@ -215,15 +226,58 @@ def run_extract(
             logger.info(f"Collected {len(results)} extracts from direct URLs")
 
         # ------------------------------------------------------------------
+        # 4b. Scrape TN County Clerk portal for clerk_counties
+        # ------------------------------------------------------------------
+        clerk_counties: dict = sources.get("clerk_counties", {})
+        if clerk_counties:
+            logger.info(f"Scraping TN County Clerk portal for {len(clerk_counties)} counties")
+            clerk = ClerkScraper()
+            end_date = datetime.now().strftime("%Y-%m-%d")
+            start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+
+            for county_name, county_code in clerk_counties.items():
+                try:
+                    logger.debug(f"Fetching clerk data for {county_name} (code={county_code})")
+                    clerk_rows = clerk.fetch_county(
+                        county_code=county_code,
+                        start_date=start_date,
+                        end_date=end_date,
+                    )
+                    if clerk_rows:
+                        results.append({
+                            "raw_content": "",
+                            "source_url": f"https://secure.tncountyclerk.com/businesslist/{county_name}",
+                            "county": county_name,
+                            "source_type": "clerk_table",
+                            "title": f"{county_name} County Clerk Business List",
+                            "clerk_rows": clerk_rows,
+                        })
+                        logger.info(f"Found {len(clerk_rows)} clerk records for {county_name}")
+                except Exception as exc:
+                    logger.warning(f"Clerk scraping failed for {county_name}: {exc}")
+                    continue
+
+            logger.info(f"Clerk scraping complete, total extracts now: {len(results)}")
+
+        # ------------------------------------------------------------------
         # 5. Iterate over every search query
         # ------------------------------------------------------------------
         for query_entry in queries:
             query_text: str = query_entry.get("query", "")
             county: str | None = query_entry.get("county")
 
-            # 5a – Search
-            logger.debug(f"Searching for: {query_text}")
-            search_results: list[dict] = client.search(query_text, max_results=10)
+            # 5a – Search (with optional cache)
+            cached = None
+            if use_db and conn is not None:
+                cached = get_cached_search(conn, query_text, ttl_hours=24)
+            if cached is not None:
+                logger.debug(f"Using cached results for: {query_text}")
+                search_results = cached
+            else:
+                logger.debug(f"Searching for: {query_text}")
+                search_results = client.search(query_text, max_results=10)
+                if use_db and conn is not None and search_results:
+                    set_cached_search(conn, query_text, search_results)
             if not search_results:
                 # Empty or failed search — move on to the next query
                 logger.debug(f"No results for query: {query_text}")
@@ -251,7 +305,8 @@ def run_extract(
                     # Attempt full-page extraction
                     extracted = client.extract(url)
                     if extracted is None:
-                        # Extraction failed — skip this URL entirely
+                        # Extraction failed — mark as processed to prevent retry
+                        processed_this_run.add(url)
                         continue
 
                     extracted_content: str = extracted.get("content", "")
@@ -279,8 +334,8 @@ def run_extract(
                 # Mark URL as processed so we don't revisit it later in this run
                 processed_this_run.add(url)
 
-        logger.info(f"Extract completed: {len(results)} raw extracts collected")
-        return results
+        logger.info(f"Extract completed: {len(results)} raw extracts collected, {client.credits_used} credits used")
+        return results, client.credits_used
 
     finally:
         # ------------------------------------------------------------------

@@ -165,7 +165,7 @@ class TestRunExtract:
     def test_returns_raw_extracts(self, mock_client, sample_sources_config):
         """Returns a list of RawExtract dicts."""
         with patch("etl.extract._load_sources", return_value=sample_sources_config):
-            results = run_extract(client=mock_client, use_db=False)
+            results, credits = run_extract(client=mock_client, use_db=False)
 
         assert isinstance(results, list)
         # Should have processed some results
@@ -188,7 +188,7 @@ class TestRunExtract:
         ]
 
         with patch("etl.extract._load_sources", return_value=sample_sources_config):
-            results = run_extract(client=mock_client, use_db=False)
+            results, _ = run_extract(client=mock_client, use_db=False)
 
         # YouTube result should be filtered out
         urls = [r["source_url"] for r in results]
@@ -209,7 +209,7 @@ class TestRunExtract:
         }
 
         with patch("etl.extract._load_sources", return_value=sample_sources_config):
-            results = run_extract(client=mock_client, use_db=False)
+            results, _ = run_extract(client=mock_client, use_db=False)
 
         # Extract should have been called for the extractable domain
         mock_client.extract.assert_called()
@@ -225,7 +225,7 @@ class TestRunExtract:
         ]
 
         with patch("etl.extract._load_sources", return_value=sample_sources_config):
-            results = run_extract(client=mock_client, use_db=False)
+            results, _ = run_extract(client=mock_client, use_db=False)
 
         # Should have a search_snippet result
         snippets = [r for r in results if r["source_type"] == "search_snippet"]
@@ -255,7 +255,7 @@ class TestRunExtract:
         ]
 
         with patch("etl.extract._load_sources", return_value=sample_sources_config):
-            results = run_extract(client=mock_client, conn=memory_db, use_db=True)
+            results, _ = run_extract(client=mock_client, conn=memory_db, use_db=True)
 
         urls = [r["source_url"] for r in results]
         assert "https://somesite.com/seen-page" not in urls
@@ -279,7 +279,7 @@ class TestRunExtract:
         ]
 
         with patch("etl.extract._load_sources", return_value=sample_sources_config):
-            results = run_extract(client=mock_client, use_db=False)
+            results, _ = run_extract(client=mock_client, use_db=False)
 
         # Should only have one result even though it was returned twice
         assert len([r for r in results if r["source_url"] == "https://somesite.com/same-page"]) == 1
@@ -300,7 +300,7 @@ class TestRunExtract:
         ]
 
         with patch("etl.extract._load_sources", return_value=sample_sources_config):
-            results = run_extract(client=mock_client, use_db=False)
+            results, _ = run_extract(client=mock_client, use_db=False)
 
         assert results[0]["county"] == "Davidson"
 
@@ -309,7 +309,7 @@ class TestRunExtract:
         mock_client.search.return_value = []
 
         with patch("etl.extract._load_sources", return_value=sample_sources_config):
-            results = run_extract(client=mock_client, use_db=False)
+            results, _ = run_extract(client=mock_client, use_db=False)
 
         assert results == []
 
@@ -325,7 +325,108 @@ class TestRunExtract:
         mock_client.extract.return_value = None  # Extraction failed
 
         with patch("etl.extract._load_sources", return_value=sample_sources_config):
-            results = run_extract(client=mock_client, use_db=False)
+            results, _ = run_extract(client=mock_client, use_db=False)
 
         # Should skip the failed extraction
         assert len(results) == 0
+
+
+# ---------------------------------------------------------------------------
+# Clerk Extraction Tests
+# ---------------------------------------------------------------------------
+
+
+class TestClerkExtraction:
+    """Test that clerk counties are scraped during extract."""
+
+    def test_clerk_counties_produce_raw_extracts(self):
+        """Clerk scraping should produce RawExtract dicts with source_type=clerk_table."""
+        mock_client = MagicMock()
+        mock_client.search.return_value = []
+        mock_client.credits_used = 0
+
+        clerk_rows = [
+            {
+                "business_name": "TACO FIESTA",
+                "product": "RESTAURANT",
+                "address": "123 MAIN ST  NASHVILLE TN 37201",
+                "owner": "JOHN DOE",
+                "date": "2026-03-15",
+            }
+        ]
+
+        sources_config = {
+            "queries": [],
+            "extractable_domains": [],
+            "blocked_domains": [],
+            "clerk_counties": {"Davidson": 19},
+        }
+
+        with patch("etl.extract._load_sources", return_value=sources_config), \
+             patch("etl.extract.ClerkScraper") as MockScraper:
+
+            mock_scraper_instance = MagicMock()
+            mock_scraper_instance.fetch_county.return_value = clerk_rows
+            MockScraper.return_value = mock_scraper_instance
+
+            results, credits = run_extract(client=mock_client, use_db=False)
+
+        assert len(results) == 1
+        assert results[0]["source_type"] == "clerk_table"
+        assert results[0]["county"] == "Davidson"
+        assert results[0]["clerk_rows"] == clerk_rows
+
+    def test_clerk_extraction_skips_on_http_error(self):
+        """If clerk scraping fails for a county, log warning and continue."""
+        mock_client = MagicMock()
+        mock_client.search.return_value = []
+        mock_client.credits_used = 0
+
+        sources_config = {
+            "queries": [],
+            "extractable_domains": [],
+            "blocked_domains": [],
+            "clerk_counties": {"Davidson": 19},
+        }
+
+        with patch("etl.extract._load_sources", return_value=sources_config), \
+             patch("etl.extract.ClerkScraper") as MockScraper:
+
+            mock_scraper_instance = MagicMock()
+            mock_scraper_instance.fetch_county.side_effect = Exception("503 Unavailable")
+            MockScraper.return_value = mock_scraper_instance
+
+            results, credits = run_extract(client=mock_client, use_db=False)
+
+        # Should not crash, just return empty
+        assert results == []
+
+    def test_clerk_extraction_date_range_is_30_days(self):
+        """Clerk scraping should use a 30-day date range ending today."""
+        mock_client = MagicMock()
+        mock_client.search.return_value = []
+        mock_client.credits_used = 0
+
+        sources_config = {
+            "queries": [],
+            "extractable_domains": [],
+            "blocked_domains": [],
+            "clerk_counties": {"Davidson": 19},
+        }
+
+        with patch("etl.extract._load_sources", return_value=sources_config), \
+             patch("etl.extract.ClerkScraper") as MockScraper:
+
+            mock_scraper_instance = MagicMock()
+            mock_scraper_instance.fetch_county.return_value = []
+            MockScraper.return_value = mock_scraper_instance
+
+            run_extract(client=mock_client, use_db=False)
+
+        call_kwargs = mock_scraper_instance.fetch_county.call_args[1]
+        # Verify date range is approximately 30 days
+        from datetime import datetime
+        start = datetime.strptime(call_kwargs["start_date"], "%Y-%m-%d")
+        end = datetime.strptime(call_kwargs["end_date"], "%Y-%m-%d")
+        delta = (end - start).days
+        assert 28 <= delta <= 31
