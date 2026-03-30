@@ -20,6 +20,7 @@ from etl.transform import (
     score_lead,
     infer_county,
     deduplicate,
+    run_transform,
     _parse_date,
     _build_city_to_county_map,
     _validate_scoring,
@@ -723,3 +724,87 @@ class TestValidateScoring:
             _validate_scoring(wrong_type_config)
 
         assert "should be dict" in str(exc_info.value)
+
+
+# ---------------------------------------------------------------------------
+# Parser Routing Tests
+# ---------------------------------------------------------------------------
+
+
+class TestParserRouting:
+    """Tests for run_transform parser routing logic."""
+
+    def test_routes_clerk_table_to_parse_clerk_table(self):
+        """Verifies that clerk_table source_type routes to parse_clerk_table."""
+        from unittest.mock import patch
+
+        # Sample clerk_rows data (mimics ClerkScraper output)
+        # Use today's date to ensure recency score is max (15 points)
+        today = datetime.now().strftime("%Y-%m-%d")
+        clerk_rows = [
+            {
+                "business_name": "Joe's Coffee Shop",
+                "product": "Cafe",
+                "address": "123 MAIN ST  NASHVILLE TN 37201",
+                "owner": "Joe Smith",
+                "date": today,
+            },
+        ]
+
+        # Raw extract with clerk_table source_type
+        raw_extracts = [
+            {
+                "source_type": "clerk_table",
+                "source_url": "https://secure.tncountyclerk.com/businesslist/19",
+                "county": "Davidson",
+                "clerk_rows": clerk_rows,
+                "raw_content": "",  # Not used for clerk_table
+                "title": "",
+            },
+        ]
+
+        # Mock YAML configs
+        mock_scoring = {
+            "type_scores": {"cafe": 40, "other": 10},
+            "business_type_keywords": {"cafe": ["cafe", "coffee"]},
+            "source_scores": {"clerk_table": 20, "search_snippet": 8},
+            "address_scores": {"full": 15, "partial": 10, "city_only": 5, "none": 0},
+            "recency_scores": [
+                {"max_days": 7, "score": 15},
+                {"max_days": 14, "score": 10},
+                {"max_days": 30, "score": 5},
+            ],
+        }
+        mock_chains = {"chains": []}
+        mock_sources = {"counties": {"Davidson": ["Nashville"]}}
+
+        def mock_load_yaml(path):
+            if "scoring.yaml" in str(path):
+                return mock_scoring
+            elif "chains.yaml" in str(path):
+                return mock_chains
+            elif "sources.yaml" in str(path):
+                return mock_sources
+            return {}
+
+        with patch("etl.transform._load_yaml", side_effect=mock_load_yaml):
+            result = run_transform(raw_extracts)
+
+        # Verify we got a record
+        assert len(result) == 1
+        record = result[0]
+
+        # Verify it parsed the clerk data correctly
+        assert record["business_name"] == "Joe's Coffee Shop"
+        assert record["business_type"] == "cafe"
+        assert record["raw_type"] == "Cafe"
+        assert record["source_type"] == "clerk_table"
+        assert record["address"] == "123 MAIN ST"
+        assert record["city"] == "NASHVILLE"
+        assert record["state"] == "TN"
+        assert record["zip_code"] == "37201"
+        assert record["county"] == "Davidson"
+        assert record["license_date"] == today
+
+        # Verify it was scored correctly (cafe=40 + clerk_table=20 + full_address=15 + recency=15 = 90)
+        assert record["pos_score"] == 90

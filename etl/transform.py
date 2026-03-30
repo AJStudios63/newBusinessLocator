@@ -15,7 +15,7 @@ from pathlib import Path
 import yaml
 
 from config.settings import SCORING_YAML, CHAINS_YAML, SOURCES_YAML
-from utils.parsers import parse_license_table, parse_news_article, parse_snippet
+from utils.parsers import parse_license_table, parse_clerk_table, parse_news_article, parse_snippet
 from utils.dedup import generate_fingerprint
 from utils.logging_config import get_logger
 
@@ -23,9 +23,17 @@ logger = get_logger("transform")
 
 
 def _load_yaml(path: str | Path) -> dict:
-    """Load a yaml file."""
-    with open(path, "r") as fh:
-        return yaml.safe_load(fh)
+    """Load a yaml file with error handling."""
+    try:
+        with open(path, "r") as fh:
+            data = yaml.safe_load(fh)
+    except FileNotFoundError:
+        raise RuntimeError(f"Config file not found: {path}")
+    except yaml.YAMLError as e:
+        raise RuntimeError(f"Invalid YAML in {path}: {e}")
+    if not isinstance(data, dict):
+        raise RuntimeError(f"Expected dict in {path}, got {type(data).__name__}")
+    return data
 
 
 def _validate_scoring(scoring: dict) -> None:
@@ -102,7 +110,14 @@ def classify(record: dict, type_keywords: dict) -> dict:
         raw_type_lower = raw_type.lower()
         for biz_type, keywords in type_keywords.items():
             for kw in keywords:
-                if kw.lower() in raw_type_lower:
+                kw_lower = kw.lower()
+                # Use word-boundary matching for short keywords to avoid
+                # false positives (e.g. "bar" matching "barber")
+                if len(kw_lower) <= 3:
+                    if re.search(r"\b" + re.escape(kw_lower) + r"\b", raw_type_lower):
+                        record["business_type"] = biz_type
+                        return record
+                elif kw_lower in raw_type_lower:
                     record["business_type"] = biz_type
                     return record
 
@@ -111,7 +126,12 @@ def classify(record: dict, type_keywords: dict) -> dict:
         name_lower = business_name.lower()
         for biz_type, keywords in type_keywords.items():
             for kw in keywords:
-                if kw.lower() in name_lower:
+                kw_lower = kw.lower()
+                if len(kw_lower) <= 3:
+                    if re.search(r"\b" + re.escape(kw_lower) + r"\b", name_lower):
+                        record["business_type"] = biz_type
+                        return record
+                elif kw_lower in name_lower:
                     record["business_type"] = biz_type
                     return record
 
@@ -143,40 +163,84 @@ _ARTICLE_TITLE_PATTERNS = [
     re.compile(r"opening\s+soon", re.IGNORECASE),
     re.compile(r"grand\s+opening", re.IGNORECASE),
     re.compile(r"exciting\s+additions?", re.IGNORECASE),
+    re.compile(r"most\s+anticipated", re.IGNORECASE),
+    re.compile(r"out-of-town\s+restaurant", re.IGNORECASE),
+    re.compile(r"restaurant\s+openings?", re.IGNORECASE),
+    re.compile(r"openings?\s+to\s+watch", re.IGNORECASE),
+    re.compile(r"what\s+opened\s+in\b", re.IGNORECASE),  # "What Opened in Franklin..."
+    re.compile(r"looking\s+ahead\s+in\b", re.IGNORECASE),  # "Looking Ahead in Franklin..."
+    re.compile(r"new\s+restaurants?\s+and\b", re.IGNORECASE),  # "New Restaurants and Bars in..."
+    re.compile(r"\bexpands?\s+to\b", re.IGNORECASE),  # "Cuban restaurant expands to..."
+    re.compile(r"\bagriculture\b", re.IGNORECASE),  # "Energy, Agriculture and Natural Resources"
+    re.compile(r"\bnatural\s+resources\b", re.IGNORECASE),
+]
+
+# Source site names that get parsed as business names
+_SOURCE_NAME_PATTERNS = [
+    re.compile(r"^.{0,20}county\s+source$", re.IGNORECASE),
+    re.compile(r"^.{0,20}source$", re.IGNORECASE),
 ]
 
 
-def is_article_title(name: str) -> bool:
+def _strip_markdown(name: str) -> str:
+    """Strip markdown formatting from a business name."""
+    # Remove heading prefixes (##### etc.)
+    cleaned = re.sub(r"^#+\s*", "", name)
+    # Remove bold markers (**text** or __text__)
+    cleaned = re.sub(r"\*\*([^*]*)\*\*", r"\1", cleaned)
+    cleaned = re.sub(r"__([^_]*)__", r"\1", cleaned)
+    return cleaned.strip()
+
+
+def is_garbage_name(name: str) -> bool:
     """
-    Detect if a business name is actually an article title rather than
-    a real business name.
+    Detect if a business name is garbage data (article title, source name,
+    markdown artifact, or scraped non-business text).
 
-    Returns True if any of the following heuristics match:
-    - Name starts with a number followed by a space (e.g., "5 Nashville...", "10 anticipated...")
-    - Name matches known article-title patterns (e.g., "What's Coming", "Coming Soon to",
-      "New Businesses", "Economic Development", "Calendar", "New in [City]",
-      "Best New", "Top [number]", "Opening Soon", "Grand Opening", "Exciting Additions")
-    - Name length exceeds 60 characters (real business names are typically short)
-
-    This filter is intended only for search_snippet source types.
+    Returns True if the name should be filtered out.
     """
     if not name:
-        return False
+        return True
+
+    # Strip markdown before checking
+    cleaned = _strip_markdown(name)
+    if not cleaned:
+        return True
 
     # Rule 1: Starts with a number followed by a space
-    if _STARTS_WITH_NUMBER_RE.match(name):
+    if _STARTS_WITH_NUMBER_RE.match(cleaned):
         return True
 
     # Rule 2: Matches known article-title patterns
     for pattern in _ARTICLE_TITLE_PATTERNS:
-        if pattern.search(name):
+        if pattern.search(cleaned):
             return True
 
-    # Rule 3: Name is too long to be a real business name
-    if len(name) > 60:
+    # Rule 3: Matches source site names (e.g., "Davidson County Source")
+    for pattern in _SOURCE_NAME_PATTERNS:
+        if pattern.match(cleaned):
+            return True
+
+    # Rule 4: Name is too long to be a real business name
+    if len(cleaned) > 60:
+        return True
+
+    # Rule 5: Contains markdown heading markers (not fully stripped)
+    if cleaned.startswith("#"):
         return True
 
     return False
+
+
+def is_article_title(name: str) -> bool:
+    """Detect if a business name is actually an article title.
+
+    Legacy wrapper — preserves original behavior where empty strings
+    return False (empty names are handled elsewhere in the pipeline).
+    """
+    if not name or not name.strip():
+        return False
+    return is_garbage_name(name)
 
 
 def score_lead(record: dict, scoring: dict) -> int:
@@ -285,6 +349,7 @@ def deduplicate(records: list[dict]) -> list[dict]:
         fp = generate_fingerprint(
             record.get("business_name", ""),
             record.get("city", ""),
+            record.get("source_url", ""),
         )
         record["fingerprint"] = fp
 
@@ -339,6 +404,9 @@ def run_transform(raw_extracts: list[dict]) -> list[dict]:
 
         if source_type == "license_table":
             parsed = parse_license_table(raw_content, source_url, county)
+        elif source_type == "clerk_table":
+            clerk_rows = extract.get("clerk_rows", [])
+            parsed = parse_clerk_table(clerk_rows, county=county)
         elif source_type == "news_article":
             parsed = parse_news_article(raw_content, source_url, county)
         elif source_type == "search_snippet":
@@ -356,13 +424,19 @@ def run_transform(raw_extracts: list[dict]) -> list[dict]:
     for record in all_records:
         classify(record, type_keywords)
 
+        # Strip markdown from business names before further processing
+        biz_name = record.get("business_name", "")
+        if biz_name:
+            stripped = _strip_markdown(biz_name)
+            if stripped != biz_name:
+                record["business_name"] = stripped
+
         if is_chain(record.get("business_name", ""), chain_list):
             chains_filtered += 1
             continue
 
-        # Filter out article titles from search snippets only
-        source_type = record.get("source_type", "")
-        if source_type == "search_snippet" and is_article_title(record.get("business_name", "")):
+        # Filter out garbage names (article titles, source names, markdown artifacts)
+        if is_garbage_name(record.get("business_name", "")):
             article_titles_filtered += 1
             continue
 
@@ -371,7 +445,7 @@ def run_transform(raw_extracts: list[dict]) -> list[dict]:
         output_records.append(record)
 
     logger.debug(f"Filtered {chains_filtered} chain records")
-    logger.debug(f"Filtered {article_titles_filtered} article title records (search_snippet only)")
+    logger.debug(f"Filtered {article_titles_filtered} garbage name records")
 
     # 5. Deduplicate
     pre_dedup_count = len(output_records)
