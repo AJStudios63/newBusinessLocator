@@ -88,6 +88,12 @@ def _validate_sources(sources: dict) -> None:
     if type_errors:
         errors.extend(type_errors)
 
+    # Optional key type checks
+    if "clerk_counties" in sources and not isinstance(sources["clerk_counties"], dict):
+        errors.append(
+            f"'clerk_counties' should be dict, got {type(sources['clerk_counties']).__name__}"
+        )
+
     if errors:
         raise ValueError(
             f"Invalid sources.yaml configuration: {'; '.join(errors)}"
