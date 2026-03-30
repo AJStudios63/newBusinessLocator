@@ -69,6 +69,19 @@ counties:
     - Baxter
     - Monterey
 
+# TN County Clerk portal (secure.tncountyclerk.com/businesslist)
+# Only counties that have the business list feature are listed here.
+# Code is the numeric county ID used by the portal.
+clerk_counties:
+  Davidson: 19
+  Williamson: 94
+  Wilson: 95
+  Robertson: 74
+  Maury: 60
+  Dickson: 22
+  Cheatham: 11
+  Montgomery: 63
+
 # Domain filtering
 extractable_domains:
   # County source sites (license tables)
@@ -112,6 +125,14 @@ extractable_domains:
   # Business listings
   - yelp.com
   - gallatintn.gov
+  - hendersonvilletn.org
+  - murfreesborotn.gov
+  - rutherfordcountytn.gov
+  - cookeville-tn.gov
+  - putnamcountytn.gov
+  - sumnerchamber.com
+  - rutherfordchamber.org
+  - cookevillechamber.com
 
 blocked_domains:
   - youtube.com
@@ -125,29 +146,6 @@ blocked_domains:
 # Search queries organized by tier
 # Each query has: query (the search string), county (metadata, null if multi-county), tier (A/B/C)
 queries:
-  # Tier A — License Tables
-  - query: "site:davidsoncountysource.com new business licenses"
-    county: Davidson
-    tier: A
-  - query: "site:williamsonsource.com new business licenses"
-    county: Williamson
-    tier: A
-  - query: "site:wilsoncountysource.com new business licenses"
-    county: Wilson
-    tier: A
-  - query: "site:cheathamcountysource.com new business licenses"
-    county: Cheatham
-    tier: A
-  - query: "site:robertsoncountysource.com new business licenses"
-    county: Robertson
-    tier: A
-  - query: "site:maurycountysource.com new business licenses"
-    county: Maury
-    tier: A
-  - query: "site:dicksoncountysource.com new business licenses"
-    county: Dickson
-    tier: A
-
   # Tier B — News Articles (one per county/major city)
   - query: "new business opening Nashville 2026"
     county: Davidson
@@ -170,10 +168,28 @@ queries:
   - query: "site:rutherfordsource.com new business opening Murfreesboro 2025 2026"
     county: Rutherford
     tier: B
+  - query: "Murfreesboro new business license permit 2025 2026"
+    county: Rutherford
+    tier: B
+  - query: "Smyrna La Vergne new restaurant store grand opening Tennessee"
+    county: Rutherford
+    tier: B
+  - query: "Murfreesboro business grand opening coming soon Tennessee 2025 2026"
+    county: Rutherford
+    tier: B
   - query: "new business opening Gallatin Hendersonville Sumner County Tennessee 2026"
     county: Sumner
     tier: B
   - query: "new restaurant store salon opening Gallatin Hendersonville Portland Tennessee 2026"
+    county: Sumner
+    tier: B
+  - query: "Gallatin new business license permit 2025 2026"
+    county: Sumner
+    tier: B
+  - query: "Hendersonville new restaurant store grand opening Tennessee 2025 2026"
+    county: Sumner
+    tier: B
+  - query: "Sumner County new business grand opening coming soon Tennessee"
     county: Sumner
     tier: B
   - query: "new business opening Lebanon Mount Juliet Wilson County 2026"
@@ -192,6 +208,15 @@ queries:
     county: Putnam
     tier: B
   - query: "new restaurant store salon opening Cookeville Tennessee 2025 2026"
+    county: Putnam
+    tier: B
+  - query: "Cookeville new business license permit 2025 2026"
+    county: Putnam
+    tier: B
+  - query: "Cookeville Algood Baxter grand opening new restaurant store Tennessee"
+    county: Putnam
+    tier: B
+  - query: "Putnam County Tennessee new business opening coming soon 2025 2026"
     county: Putnam
     tier: B
   - query: "new business opening Manchester Tullahoma Coffee County Tennessee 2026"
@@ -230,6 +255,9 @@ queries:
     county: null
     tier: C
   - query: "new restaurant retail opening Clarksville Cookeville Manchester Middle Tennessee 2026"
+    county: null
+    tier: C
+  - query: "new business grand opening Murfreesboro Gallatin Cookeville Tennessee 2025 2026"
     county: null
     tier: C
 

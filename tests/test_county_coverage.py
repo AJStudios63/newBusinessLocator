@@ -10,22 +10,27 @@ def _load_sources():
         return yaml.safe_load(fh)
 
 
-COUNTIES_WITH_LICENSE_SITES = [
+COUNTIES_WITH_CLERK_PORTAL = [
     "Davidson", "Williamson", "Wilson", "Cheatham",
-    "Robertson", "Maury", "Dickson",
+    "Robertson", "Maury", "Dickson", "Montgomery",
 ]
 
 
-class TestTierAQueries:
-    def test_all_license_site_counties_have_tier_a_query(self):
+class TestClerkCounties:
+    def test_all_clerk_portal_counties_configured(self):
         sources = _load_sources()
-        tier_a_counties = {
-            q["county"] for q in sources["queries"] if q.get("tier") == "A"
-        }
-        for county in COUNTIES_WITH_LICENSE_SITES:
-            assert county in tier_a_counties, (
-                f"{county} has a *countysource.com site but no Tier A search query"
+        clerk_counties = sources.get("clerk_counties", {})
+        for county in COUNTIES_WITH_CLERK_PORTAL:
+            assert county in clerk_counties, (
+                f"{county} has clerk portal access but is not in clerk_counties config"
             )
+
+    def test_clerk_counties_have_valid_codes(self):
+        sources = _load_sources()
+        clerk_counties = sources.get("clerk_counties", {})
+        for county, code in clerk_counties.items():
+            assert isinstance(code, int), f"{county} clerk code should be int, got {type(code)}"
+            assert 1 <= code <= 95, f"{county} clerk code {code} out of range 1-95"
 
 
 class TestTierBQueries:

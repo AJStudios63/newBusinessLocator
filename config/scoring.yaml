@@ -35,7 +35,6 @@ business_type_keywords:
     - indian
     - seafood
   bar:
-    - bar
     - tavern
     - pub
     - nightclub
@@ -45,6 +44,14 @@ business_type_keywords:
     - coffee
     - tea
     - espresso
+  salon:
+    - salon
+    - barbershop
+    - barber shop
+    - barber
+    - hair
+    - beauty
+    - nail
   retail:
     - retail
     - store
@@ -60,12 +67,6 @@ business_type_keywords:
     - wine
     - spirits
     - beer
-  salon:
-    - salon
-    - barber
-    - hair
-    - beauty
-    - nail
   bakery:
     - bakery
     - bakehouse
@@ -125,6 +126,7 @@ business_type_keywords:
 # Component B — Source confidence scores (max 20)
 source_scores:
   license_table: 20
+  clerk_table: 20
   news_article: 15
   search_snippet: 8
 
