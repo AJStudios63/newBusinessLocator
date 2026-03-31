@@ -10,6 +10,8 @@ import type {
   LeadFieldUpdate,
   DuplicatesResponse,
   MergeRequest,
+  MapLeadsResponse,
+  MapFilters,
 } from "./types";
 
 const API_BASE = "/api";
@@ -176,4 +178,17 @@ export async function mergeLeads(request: MergeRequest): Promise<Lead> {
     method: "POST",
     body: JSON.stringify(request),
   });
+}
+
+// Map
+export async function getMapLeads(filters: MapFilters = {}): Promise<MapLeadsResponse> {
+  const params = new URLSearchParams();
+  if (filters.stage) params.set("stage", filters.stage);
+  if (filters.county) params.set("county", filters.county);
+  if (filters.minScore !== undefined) params.set("minScore", filters.minScore.toString());
+  if (filters.maxScore !== undefined) params.set("maxScore", filters.maxScore.toString());
+  if (filters.businessType) params.set("businessType", filters.businessType);
+
+  const query = params.toString();
+  return fetchJson<MapLeadsResponse>(`${API_BASE}/map${query ? `?${query}` : ""}`);
 }
