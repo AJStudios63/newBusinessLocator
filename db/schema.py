@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS leads (
     city            TEXT,
     state           TEXT    DEFAULT 'TN',
     zip_code        TEXT,
+    latitude        REAL,
+    longitude       REAL,
     county          TEXT,
     license_date    TEXT,
     pos_score       INTEGER DEFAULT 0,
@@ -96,6 +98,7 @@ CREATE INDEX IF NOT EXISTS idx_stage_history_lead     ON stage_history(lead_id);
 CREATE INDEX IF NOT EXISTS idx_dupe_suggestions_status ON duplicate_suggestions(status);
 CREATE INDEX IF NOT EXISTS idx_dupe_suggestions_lead_a ON duplicate_suggestions(lead_id_a);
 CREATE INDEX IF NOT EXISTS idx_dupe_suggestions_lead_b ON duplicate_suggestions(lead_id_b);
+CREATE INDEX IF NOT EXISTS idx_leads_geocoded ON leads(latitude, longitude) WHERE latitude IS NOT NULL;
 """
 
 # ---------------------------------------------------------------------------
@@ -147,6 +150,30 @@ DDL_SCRIPT = (
 )
 
 
+def _migrate_add_column(
+    conn: sqlite3.Connection,
+    table: str,
+    column: str,
+    column_type: str,
+) -> None:
+    """Add a column to a table if it doesn't already exist.
+
+    Parameters
+    ----------
+    conn        : open sqlite3 connection
+    table       : table name
+    column      : column name to add
+    column_type : SQL column type (e.g., 'TEXT', 'INTEGER', 'REAL')
+    """
+    # Check if column exists
+    cursor = conn.execute(f"PRAGMA table_info({table});")
+    columns = [row[1] for row in cursor.fetchall()]
+
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_type};")
+        conn.commit()
+
+
 def init_db(db_path: str | Path) -> sqlite3.Connection:
     """Open (or create) the SQLite database, apply all DDL, and return the connection.
 
@@ -165,4 +192,9 @@ def init_db(db_path: str | Path) -> sqlite3.Connection:
     conn.executescript(DDL_SCRIPT)
     conn.commit()
     conn.row_factory = sqlite3.Row
+
+    # Run migrations for new columns
+    _migrate_add_column(conn, "leads", "latitude", "REAL")
+    _migrate_add_column(conn, "leads", "longitude", "REAL")
+
     return conn

@@ -25,6 +25,8 @@ _INSERT_LEAD_COLUMNS = (
     "state",
     "zip_code",
     "county",
+    "latitude",
+    "longitude",
     "license_date",
     "pos_score",
     "stage",
@@ -65,6 +67,7 @@ def _build_lead_filter_clauses(
     county: str | None = None,
     min_score: int | None = None,
     max_score: int | None = None,
+    business_type: str | None = None,
 ) -> tuple[list[str], dict]:
     """Build WHERE clause components for lead filtering.
 
@@ -89,6 +92,9 @@ def _build_lead_filter_clauses(
     if max_score is not None:
         clauses.append("pos_score <= :max_score")
         params["max_score"] = max_score
+    if business_type is not None:
+        clauses.append("business_type = :business_type")
+        params["business_type"] = business_type
 
     return clauses, params
 
@@ -127,6 +133,7 @@ def get_leads(
         "address", "city", "state", "zip_code", "county", "license_date",
         "pos_score", "stage", "source_url", "source_type", "source_batch_id",
         "notes", "created_at", "updated_at", "contacted_at", "closed_at",
+        "latitude", "longitude",
     }
     if sort not in _ALLOWED_SORT_COLUMNS:
         raise ValueError(f"Invalid sort column: {sort}")
@@ -280,6 +287,86 @@ def get_leads_by_batch(conn: sqlite3.Connection, batch_id: str) -> list[dict]:
         (batch_id,),
     ).fetchall()
     return _rows_to_dicts(rows)
+
+
+def get_map_leads(
+    conn: sqlite3.Connection,
+    stage: str | None = None,
+    county: str | None = None,
+    min_score: int | None = None,
+    max_score: int | None = None,
+    business_type: str | None = None,
+    limit: int = 2000,
+) -> dict:
+    """Return geocoded leads for map display with lightweight columns.
+
+    Parameters
+    ----------
+    conn          : open sqlite3 connection
+    stage         : filter by stage value (optional)
+    county        : filter by county value (optional)
+    min_score     : minimum pos_score, inclusive (optional)
+    max_score     : maximum pos_score, inclusive (optional)
+    business_type : filter by business_type value (optional)
+    limit         : maximum number of leads returned (default 2000)
+
+    Returns
+    -------
+    dict with keys:
+        leads                 : list of geocoded lead dicts with lightweight columns
+        total_geocoded        : count of leads WITH coordinates matching filters
+        total_without_coords  : count of leads WITHOUT coordinates matching filters
+    """
+    # Build filter clauses
+    clauses, params = _build_lead_filter_clauses(
+        stage=stage,
+        county=county,
+        min_score=min_score,
+        max_score=max_score,
+        business_type=business_type,
+    )
+
+    # Count geocoded leads
+    geocoded_clauses = clauses + ["latitude IS NOT NULL", "longitude IS NOT NULL"]
+    geocoded_where = " WHERE " + " AND ".join(geocoded_clauses)
+    geocoded_sql = f"SELECT COUNT(*) AS cnt FROM leads{geocoded_where};"
+    geocoded_row = conn.execute(geocoded_sql, params).fetchone()
+    total_geocoded = geocoded_row["cnt"] if geocoded_row else 0
+
+    # Count leads without coordinates
+    non_geocoded_clauses = clauses + ["(latitude IS NULL OR longitude IS NULL)"]
+    non_geocoded_where = " WHERE " + " AND ".join(non_geocoded_clauses)
+    non_geocoded_sql = f"SELECT COUNT(*) AS cnt FROM leads{non_geocoded_where};"
+    non_geocoded_row = conn.execute(non_geocoded_sql, params).fetchone()
+    total_without_coords = non_geocoded_row["cnt"] if non_geocoded_row else 0
+
+    # Fetch geocoded leads with lightweight columns
+    params["limit"] = limit
+    fetch_clauses = clauses + ["latitude IS NOT NULL", "longitude IS NOT NULL"]
+    fetch_where = " WHERE " + " AND ".join(fetch_clauses)
+    fetch_sql = f"""
+        SELECT
+            id,
+            business_name,
+            business_type,
+            city,
+            county,
+            pos_score,
+            stage,
+            latitude,
+            longitude
+        FROM leads{fetch_where}
+        ORDER BY pos_score DESC
+        LIMIT :limit;
+    """
+    rows = conn.execute(fetch_sql, params).fetchall()
+    leads = _rows_to_dicts(rows)
+
+    return {
+        "leads": leads,
+        "total_geocoded": total_geocoded,
+        "total_without_coords": total_without_coords,
+    }
 
 
 # ---------------------------------------------------------------------------
