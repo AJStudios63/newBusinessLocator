@@ -5,3 +5,6 @@ logs/pipeline.log
 .claude/
 .playwright-mcp/
 .env
+.venv/
+.superpowers/
+.DS_Store
