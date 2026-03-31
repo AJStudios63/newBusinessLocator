@@ -8,6 +8,8 @@ export interface Lead {
   city: string | null;
   state: string;
   zip_code: string | null;
+  latitude: number | null;
+  longitude: number | null;
   county: string | null;
   license_date: string | null;
   pos_score: number;
@@ -157,4 +159,30 @@ export interface MergeRequest {
   merge_id: number;
   field_choices?: Record<string, string>;
   suggestion_id?: number;
+}
+
+export interface MapLead {
+  id: number;
+  business_name: string;
+  business_type: string | null;
+  city: string | null;
+  county: string | null;
+  pos_score: number;
+  stage: Stage;
+  latitude: number;
+  longitude: number;
+}
+
+export interface MapLeadsResponse {
+  leads: MapLead[];
+  total_geocoded: number;
+  total_without_coords: number;
+}
+
+export interface MapFilters {
+  stage?: string;
+  county?: string;
+  minScore?: number;
+  maxScore?: number;
+  businessType?: string;
 }
