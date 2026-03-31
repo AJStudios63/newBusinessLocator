@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Table,
@@ -75,6 +75,10 @@ export function LeadTable({ leads, onRowClick }: LeadTableProps) {
       setShowDeleteDialog(false);
     },
   });
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [leads]);
 
   const toggleAll = () => {
     if (selectedIds.size === leads.length) {

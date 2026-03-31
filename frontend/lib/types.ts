@@ -96,6 +96,7 @@ export interface PipelineRun {
   leads_found: number;
   leads_new: number;
   leads_dupes: number;
+  credits_used: number;
   error_message: string | null;
   sources_queried: string | null;
 }

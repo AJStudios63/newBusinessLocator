@@ -71,10 +71,11 @@ export function FilterPresets({ currentFilters, onApplyPreset }: FilterPresetsPr
       return;
     }
 
+    const { limit, page, pageSize, ...filtersToSave } = currentFilters;
     const newPreset: FilterPreset = {
       id: generateId(),
       name: presetName.trim(),
-      filters: { ...currentFilters, limit: undefined }, // Don't save limit
+      filters: filtersToSave,
       createdAt: new Date().toISOString(),
     };
 
@@ -97,7 +98,8 @@ export function FilterPresets({ currentFilters, onApplyPreset }: FilterPresetsPr
   const handleApplyPreset = (id: string) => {
     const preset = presets.find((p) => p.id === id);
     if (preset) {
-      onApplyPreset({ ...preset.filters, limit: 100 });
+      const { limit, page, pageSize, ...cleanFilters } = preset.filters;
+      onApplyPreset(cleanFilters);
       toast.success(`Applied preset "${preset.name}"`);
     }
   };

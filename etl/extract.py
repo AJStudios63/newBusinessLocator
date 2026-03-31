@@ -133,7 +133,7 @@ def run_extract(
     client: TavilyClient | None = None,
     conn: sqlite3.Connection | None = None,
     use_db: bool = True,
-) -> list[dict]:
+) -> tuple[list[dict], int]:
     """
     Main extract entry point.  Returns a list of RawExtract dicts.
 

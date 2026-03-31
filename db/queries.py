@@ -417,11 +417,9 @@ def update_lead_fields(
     sql = f"UPDATE leads SET {', '.join(set_clauses)} WHERE id = :lead_id AND deleted_at IS NULL;"
 
     try:
-        conn.execute("BEGIN IMMEDIATE")
-        conn.execute(sql, updates)
-        conn.commit()
+        with conn:
+            conn.execute(sql, updates)
     except Exception:
-        conn.rollback()
         raise
 
     return get_lead(conn, lead_id)
@@ -442,18 +440,16 @@ def soft_delete_leads(conn: sqlite3.Connection, ids: list[int]) -> list[int]:
 
     deleted = []
     try:
-        conn.execute("BEGIN IMMEDIATE")
-        for lead_id in ids:
-            cur = conn.execute(
-                "UPDATE leads SET deleted_at = datetime('now'), updated_at = datetime('now') "
-                "WHERE id = ? AND deleted_at IS NULL;",
-                (lead_id,),
-            )
-            if cur.rowcount > 0:
-                deleted.append(lead_id)
-        conn.commit()
+        with conn:
+            for lead_id in ids:
+                cur = conn.execute(
+                    "UPDATE leads SET deleted_at = datetime('now'), updated_at = datetime('now') "
+                    "WHERE id = ? AND deleted_at IS NULL;",
+                    (lead_id,),
+                )
+                if cur.rowcount > 0:
+                    deleted.append(lead_id)
     except Exception:
-        conn.rollback()
         raise
 
     return deleted
@@ -469,18 +465,16 @@ def bulk_update_county(conn: sqlite3.Connection, ids: list[int], county: str) ->
 
     updated = []
     try:
-        conn.execute("BEGIN IMMEDIATE")
-        for lead_id in ids:
-            cur = conn.execute(
-                "UPDATE leads SET county = ?, updated_at = datetime('now') "
-                "WHERE id = ? AND deleted_at IS NULL;",
-                (county, lead_id),
-            )
-            if cur.rowcount > 0:
-                updated.append(lead_id)
-        conn.commit()
+        with conn:
+            for lead_id in ids:
+                cur = conn.execute(
+                    "UPDATE leads SET county = ?, updated_at = datetime('now') "
+                    "WHERE id = ? AND deleted_at IS NULL;",
+                    (county, lead_id),
+                )
+                if cur.rowcount > 0:
+                    updated.append(lead_id)
     except Exception:
-        conn.rollback()
         raise
 
     return updated
@@ -517,64 +511,58 @@ def update_stage(
         if note is None:
             return  # nothing to do
         try:
-            conn.execute("BEGIN IMMEDIATE")
-            conn.execute(
-                "UPDATE leads SET "
-                "notes = COALESCE(notes || char(10), '') || ?, "
-                "updated_at = datetime('now') "
-                "WHERE id = ?;",
-                (note, lead_id),
-            )
-            conn.commit()
+            with conn:
+                conn.execute(
+                    "UPDATE leads SET "
+                    "notes = COALESCE(notes || char(10), '') || ?, "
+                    "updated_at = datetime('now') "
+                    "WHERE id = ?;",
+                    (note, lead_id),
+                )
         except Exception:
-            conn.rollback()
             raise
         return
 
     try:
-        conn.execute("BEGIN IMMEDIATE")
-
-        # -- history record --------------------------------------------------
-        conn.execute(
-            "INSERT INTO stage_history (lead_id, old_stage, new_stage) VALUES (?, ?, ?);",
-            (lead_id, old_stage, new_stage),
-        )
-
-        # -- main UPDATE -----------------------------------------------------
-        conn.execute(
-            "UPDATE leads SET stage = ?, updated_at = datetime('now') WHERE id = ?;",
-            (new_stage, lead_id),
-        )
-
-        # contacted_at – set only on first transition to 'Contacted'
-        if new_stage == "Contacted":
+        with conn:
+            # -- history record --------------------------------------------------
             conn.execute(
-                "UPDATE leads SET contacted_at = datetime('now') "
-                "WHERE id = ? AND contacted_at IS NULL;",
-                (lead_id,),
+                "INSERT INTO stage_history (lead_id, old_stage, new_stage) VALUES (?, ?, ?);",
+                (lead_id, old_stage, new_stage),
             )
 
-        # closed_at – set only on first transition to a closed stage
-        if new_stage in ("Closed-Won", "Closed-Lost"):
+            # -- main UPDATE -----------------------------------------------------
             conn.execute(
-                "UPDATE leads SET closed_at = datetime('now') "
-                "WHERE id = ? AND closed_at IS NULL;",
-                (lead_id,),
+                "UPDATE leads SET stage = ?, updated_at = datetime('now') WHERE id = ?;",
+                (new_stage, lead_id),
             )
 
-        # -- optional note ---------------------------------------------------
-        if note is not None:
-            conn.execute(
-                "UPDATE leads SET "
-                "notes = COALESCE(notes || char(10), '') || ?, "
-                "updated_at = datetime('now') "
-                "WHERE id = ?;",
-                (note, lead_id),
-            )
+            # contacted_at – set only on first transition to 'Contacted'
+            if new_stage == "Contacted":
+                conn.execute(
+                    "UPDATE leads SET contacted_at = datetime('now') "
+                    "WHERE id = ? AND contacted_at IS NULL;",
+                    (lead_id,),
+                )
 
-        conn.commit()
+            # closed_at – set only on first transition to a closed stage
+            if new_stage in ("Closed-Won", "Closed-Lost"):
+                conn.execute(
+                    "UPDATE leads SET closed_at = datetime('now') "
+                    "WHERE id = ? AND closed_at IS NULL;",
+                    (lead_id,),
+                )
+
+            # -- optional note ---------------------------------------------------
+            if note is not None:
+                conn.execute(
+                    "UPDATE leads SET "
+                    "notes = COALESCE(notes || char(10), '') || ?, "
+                    "updated_at = datetime('now') "
+                    "WHERE id = ?;",
+                    (note, lead_id),
+                )
     except Exception:
-        conn.rollback()
         raise
 
 
@@ -617,7 +605,7 @@ def get_stats(conn: sqlite3.Connection) -> dict:
     by_county = {
         row["county"]: row["cnt"]
         for row in conn.execute(
-            "SELECT county, COUNT(*) AS cnt FROM leads WHERE deleted_at IS NULL GROUP BY county;"
+            "SELECT COALESCE(county, 'Unknown') AS county, COUNT(*) AS cnt FROM leads WHERE deleted_at IS NULL GROUP BY COALESCE(county, 'Unknown');"
         ).fetchall()
     }
 
@@ -833,6 +821,9 @@ def _compute_similarity(lead_a: dict, lead_b: dict) -> float:
     return (name_sim * 0.7) + (city_match * 0.3)
 
 
+MAX_LEADS_TO_COMPARE = 500
+
+
 def find_duplicates(
     conn: sqlite3.Connection,
     threshold: float = 0.7,
@@ -850,11 +841,18 @@ def find_duplicates(
     -------
     Number of new suggestions created.
     """
-    # Get active leads
+    # Get active leads (capped to avoid O(n²) blowup)
     rows = conn.execute(
-        "SELECT id, business_name, city FROM leads WHERE deleted_at IS NULL ORDER BY id;"
+        "SELECT id, business_name, city FROM leads WHERE deleted_at IS NULL ORDER BY id DESC LIMIT ?;",
+        (MAX_LEADS_TO_COMPARE,),
     ).fetchall()
     leads = _rows_to_dicts(rows)
+
+    # Group by city to limit comparisons to same-city leads
+    from collections import defaultdict
+    by_city: dict = defaultdict(list)
+    for lead in leads:
+        by_city[lead["city"] or ""].append(lead)
 
     # Get existing suggestions to avoid re-checking
     existing = set()
@@ -865,20 +863,23 @@ def find_duplicates(
         existing.add((row[1], row[0]))
 
     suggestions = []
-    for i, lead_a in enumerate(leads):
-        for lead_b in leads[i + 1 :]:
-            # Skip if already suggested
-            if (lead_a["id"], lead_b["id"]) in existing:
-                continue
+    for city_leads in by_city.values():
+        for i, lead_a in enumerate(city_leads):
+            for lead_b in city_leads[i + 1:]:
+                # Skip if already suggested
+                if (lead_a["id"], lead_b["id"]) in existing:
+                    continue
 
-            similarity = _compute_similarity(lead_a, lead_b)
-            if similarity >= threshold:
-                # Ensure consistent ordering (lower id first)
-                id_a, id_b = min(lead_a["id"], lead_b["id"]), max(lead_a["id"], lead_b["id"])
-                suggestions.append((id_a, id_b, similarity))
+                similarity = _compute_similarity(lead_a, lead_b)
+                if similarity >= threshold:
+                    # Ensure consistent ordering (lower id first)
+                    id_a, id_b = min(lead_a["id"], lead_b["id"]), max(lead_a["id"], lead_b["id"])
+                    suggestions.append((id_a, id_b, similarity))
 
-                if len(suggestions) >= limit:
-                    break
+                    if len(suggestions) >= limit:
+                        break
+            if len(suggestions) >= limit:
+                break
         if len(suggestions) >= limit:
             break
 
@@ -1042,45 +1043,41 @@ def merge_leads(
         return None
 
     try:
-        conn.execute("BEGIN IMMEDIATE")
+        with conn:
+            # Apply field choices if provided
+            if field_choices:
+                updates = {k: v for k, v in field_choices.items() if k in _EDITABLE_FIELDS}
+                if updates:
+                    set_clauses = [f"{col} = :{col}" for col in updates]
+                    set_clauses.append("updated_at = datetime('now')")
+                    updates["lead_id"] = keep_id
+                    sql = f"UPDATE leads SET {', '.join(set_clauses)} WHERE id = :lead_id;"
+                    conn.execute(sql, updates)
 
-        # Apply field choices if provided
-        if field_choices:
-            updates = {k: v for k, v in field_choices.items() if k in _EDITABLE_FIELDS}
-            if updates:
-                set_clauses = [f"{col} = :{col}" for col in updates]
-                set_clauses.append("updated_at = datetime('now')")
-                updates["lead_id"] = keep_id
-                sql = f"UPDATE leads SET {', '.join(set_clauses)} WHERE id = :lead_id;"
-                conn.execute(sql, updates)
+            # Merge notes
+            if merge_lead.get("notes"):
+                merge_notes = merge_lead["notes"]
+                note_addition = f"\n--- Merged from lead #{merge_id} ---\n{merge_notes}"
+                conn.execute(
+                    "UPDATE leads SET notes = COALESCE(notes, '') || ?, updated_at = datetime('now') "
+                    "WHERE id = ?;",
+                    (note_addition, keep_id),
+                )
 
-        # Merge notes
-        if merge_lead.get("notes"):
-            merge_notes = merge_lead["notes"]
-            note_addition = f"\n--- Merged from lead #{merge_id} ---\n{merge_notes}"
+            # Soft-delete the merged lead
             conn.execute(
-                "UPDATE leads SET notes = COALESCE(notes, '') || ?, updated_at = datetime('now') "
+                "UPDATE leads SET deleted_at = datetime('now'), updated_at = datetime('now') "
                 "WHERE id = ?;",
-                (note_addition, keep_id),
+                (merge_id,),
             )
 
-        # Soft-delete the merged lead
-        conn.execute(
-            "UPDATE leads SET deleted_at = datetime('now'), updated_at = datetime('now') "
-            "WHERE id = ?;",
-            (merge_id,),
-        )
-
-        # Update any duplicate suggestions involving the merged lead
-        conn.execute(
-            "UPDATE duplicate_suggestions SET status = 'merged', resolved_at = datetime('now') "
-            "WHERE (lead_id_a = ? OR lead_id_b = ?) AND status = 'pending';",
-            (merge_id, merge_id),
-        )
-
-        conn.commit()
+            # Update any duplicate suggestions involving the merged lead
+            conn.execute(
+                "UPDATE duplicate_suggestions SET status = 'merged', resolved_at = datetime('now') "
+                "WHERE (lead_id_a = ? OR lead_id_b = ?) AND status = 'pending';",
+                (merge_id, merge_id),
+            )
     except Exception:
-        conn.rollback()
         raise
 
     return get_lead(conn, keep_id)

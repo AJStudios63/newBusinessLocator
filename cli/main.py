@@ -404,11 +404,15 @@ def geocode(limit, force):
         where = "deleted_at IS NULL AND (latitude IS NULL OR longitude IS NULL)"
 
     order = "ORDER BY pos_score DESC"
-    limit_clause = f"LIMIT {limit}" if limit > 0 else ""
 
-    rows = conn.execute(
-        f"SELECT * FROM leads WHERE {where} {order} {limit_clause};"
-    ).fetchall()
+    if limit > 0:
+        rows = conn.execute(
+            f"SELECT * FROM leads WHERE {where} {order} LIMIT ?;", (limit,)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            f"SELECT * FROM leads WHERE {where} {order};"
+        ).fetchall()
     leads_to_geocode = [dict(row) for row in rows]
 
     if not leads_to_geocode:

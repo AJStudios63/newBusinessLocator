@@ -73,7 +73,7 @@ export function TypePieChart({ data, onSegmentClick }: TypeChartProps) {
               cy="50%"
               labelLine={false}
               label={({ name, percent }) =>
-                `${name} (${((percent ?? 0) * 100).toFixed(0)}%)`
+                (percent ?? 0) > 0.03 ? name : ""
               }
               outerRadius={80}
               innerRadius={40}
@@ -135,6 +135,10 @@ export function CountyBarChart({ data, onSegmentClick }: TypeChartProps) {
               tick={{ fontSize: 11, fill: "hsl(218, 11%, 55%)" }}
               axisLine={false}
               tickLine={false}
+              interval={0}
+              angle={-45}
+              textAnchor="end"
+              height={80}
             />
             <YAxis
               tick={{ fontSize: 11, fill: "hsl(218, 11%, 55%)" }}

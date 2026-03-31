@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import math
+import threading
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, HTTPException, Body
@@ -13,6 +14,8 @@ from pydantic import BaseModel, Field
 import sqlite3
 
 import yaml
+
+_chains_lock = threading.Lock()
 
 from api.dependencies import get_db
 from config.settings import CHAINS_YAML
@@ -387,16 +390,17 @@ def mark_as_chain(
 
     # Add to chains.yaml
     try:
-        with open(CHAINS_YAML, "r", encoding="utf-8") as fh:
-            data = yaml.safe_load(fh) or {}
-        chains = data.get("chains", [])
+        with _chains_lock:
+            with open(CHAINS_YAML, "r", encoding="utf-8") as fh:
+                data = yaml.safe_load(fh) or {}
+            chains = data.get("chains", [])
 
-        # Check if already in the list (case-insensitive)
-        if not any(c.lower() == business_name.lower() for c in chains):
-            chains.append(business_name)
-            data["chains"] = chains
-            with open(CHAINS_YAML, "w", encoding="utf-8") as fh:
-                yaml.dump(data, fh, default_flow_style=False, allow_unicode=True)
+            # Check if already in the list (case-insensitive)
+            if not any(c.lower() == business_name.lower() for c in chains):
+                chains.append(business_name)
+                data["chains"] = chains
+                with open(CHAINS_YAML, "w", encoding="utf-8") as fh:
+                    yaml.dump(data, fh, default_flow_style=False, allow_unicode=True)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to update chains config: {exc}")
 

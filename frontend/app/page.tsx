@@ -1,6 +1,7 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
 import { StatsCards } from "@/components/stats-cards";
 import { TypePieChart, CountyBarChart, StageBarChart } from "@/components/charts";
@@ -13,6 +14,8 @@ import Link from "next/link";
 import { formatLocalDateTime } from "@/lib/utils";
 
 export default function DashboardPage() {
+  const queryClient = useQueryClient();
+
   const { data: stats, isLoading } = useQuery({
     queryKey: ["stats"],
     queryFn: getStats,
@@ -25,6 +28,12 @@ export default function DashboardPage() {
       return query.state.data?.running ? 2000 : false;
     },
   });
+
+  useEffect(() => {
+    if (pipelineStatus && !pipelineStatus.running) {
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+    }
+  }, [pipelineStatus?.running]);
 
   const { data: duplicatesData } = useQuery({
     queryKey: ["duplicatesCount"],

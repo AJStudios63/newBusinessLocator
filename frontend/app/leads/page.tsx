@@ -101,7 +101,7 @@ function LeadsPageContent() {
 
   const counties = useMemo(() => {
     if (!stats) return [];
-    return Object.keys(stats.by_county).filter(Boolean).sort();
+    return Object.keys(stats.by_county).filter(c => c && c !== "null" && c !== "Unknown").sort();
   }, [stats]);
 
   const hasActiveFilters = !!(filters.stage || filters.county || filters.q || filters.minScore !== undefined || filters.maxScore !== undefined);

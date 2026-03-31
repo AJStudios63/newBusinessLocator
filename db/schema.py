@@ -199,6 +199,7 @@ def init_db(db_path: str | Path) -> sqlite3.Connection:
         An open connection to the initialised database.
     """
     conn = sqlite3.connect(str(db_path), timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout = 30000")
     conn.executescript(DDL_SCRIPT)
 

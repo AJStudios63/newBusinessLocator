@@ -1,7 +1,6 @@
 "use client";
 
 import { MapContainer, TileLayer, Marker, Tooltip } from "react-leaflet";
-import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { MapLead, Stage } from "@/lib/types";
@@ -37,30 +36,6 @@ function createMarkerIcon(stage: Stage): L.DivIcon {
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function createClusterIcon(cluster: any): L.DivIcon {
-  const count = cluster.getChildCount();
-  return L.divIcon({
-    html: `<div style="
-      width: 40px;
-      height: 40px;
-      background: rgba(99, 102, 241, 0.15);
-      backdrop-filter: blur(8px);
-      border: 1.5px solid rgba(139, 92, 246, 0.3);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-weight: 600;
-      font-size: 14px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    ">${count}</div>`,
-    className: "",
-    iconSize: [40, 40],
-    iconAnchor: [20, 20],
-  });
-}
 
 export default function LeadMap({ leads, onLeadClick }: LeadMapProps) {
   return (
@@ -74,30 +49,25 @@ export default function LeadMap({ leads, onLeadClick }: LeadMapProps) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      <MarkerClusterGroup
-        chunkedLoading
-        iconCreateFunction={createClusterIcon}
-      >
-        {leads.map((lead) => (
-          <Marker
-            key={lead.id}
-            position={[lead.latitude, lead.longitude]}
-            icon={createMarkerIcon(lead.stage)}
-            eventHandlers={{
-              click: () => onLeadClick(lead.id),
-            }}
-          >
-            <Tooltip>
-              <div className="text-xs">
-                <div className="font-semibold">{lead.business_name}</div>
-                <div className="text-muted-foreground">
-                  {lead.business_type || "other"} • Score: {lead.pos_score}
-                </div>
+      {leads.map((lead) => (
+        <Marker
+          key={lead.id}
+          position={[lead.latitude, lead.longitude]}
+          icon={createMarkerIcon(lead.stage)}
+          eventHandlers={{
+            click: () => onLeadClick(lead.id),
+          }}
+        >
+          <Tooltip>
+            <div className="text-xs">
+              <div className="font-semibold">{lead.business_name}</div>
+              <div className="text-muted-foreground">
+                {lead.business_type || "other"} • Score: {lead.pos_score}
               </div>
-            </Tooltip>
-          </Marker>
-        ))}
-      </MarkerClusterGroup>
+            </div>
+          </Tooltip>
+        </Marker>
+      ))}
     </MapContainer>
   );
 }

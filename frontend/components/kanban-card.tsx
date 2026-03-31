@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,20 @@ export function KanbanCard({ lead, onClick }: KanbanCardProps) {
     isDragging,
   } = useSortable({ id: lead.id });
 
+  const justDragged = useRef(false);
+
+  useEffect(() => {
+    if (isDragging) justDragged.current = true;
+  }, [isDragging]);
+
+  const handleClick = () => {
+    if (justDragged.current) {
+      justDragged.current = false;
+      return;
+    }
+    onClick();
+  };
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -42,7 +57,7 @@ export function KanbanCard({ lead, onClick }: KanbanCardProps) {
       role="button"
       aria-label={`${lead.business_name}, score ${lead.pos_score}, ${lead.city || "unknown city"}`}
       className="glass rounded-lg p-3 space-y-2 cursor-grab active:cursor-grabbing glow-hover transition-all duration-200"
-      onClick={onClick}
+      onClick={handleClick}
     >
       <p className="font-medium text-sm line-clamp-2">{lead.business_name}</p>
       <div className="flex items-center gap-2 flex-wrap">
