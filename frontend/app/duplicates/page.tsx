@@ -339,7 +339,7 @@ function LeadCard({ lead, label }: { lead: Lead; label: string }) {
         <p><span className="text-muted-foreground">Address:</span> {lead.address || "—"}</p>
         <p><span className="text-muted-foreground">City:</span> {lead.city || "—"}</p>
         <p><span className="text-muted-foreground">County:</span> {lead.county || "—"}</p>
-        <p><span className="text-muted-foreground">Stage:</span> <Badge variant="secondary" className="text-xs">{lead.stage}</Badge></p>
+        <div><span className="text-muted-foreground">Stage:</span> <Badge variant="secondary" className="text-xs">{lead.stage}</Badge></div>
       </div>
     </div>
   );

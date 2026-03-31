@@ -29,7 +29,7 @@ def mock_extract():
             "title": "New Business Licenses",
         },
     ]
-    with patch("etl.pipeline.run_extract", return_value=raw_extracts) as m:
+    with patch("etl.pipeline.run_extract", return_value=(raw_extracts, 3)) as m:
         yield m
 
 

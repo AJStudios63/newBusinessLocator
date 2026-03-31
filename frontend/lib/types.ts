@@ -115,6 +115,7 @@ export interface PipelineStatus {
 export interface KanbanData {
   stages: Stage[];
   columns: Record<Stage, Lead[]>;
+  counts?: Record<Stage, number>;
 }
 
 export interface LeadFilters {

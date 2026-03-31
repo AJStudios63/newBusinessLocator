@@ -9,10 +9,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, HTTPException, Body
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import sqlite3
 
+import yaml
+
 from api.dependencies import get_db
+from config.settings import CHAINS_YAML
 from db.queries import (
     get_leads,
     get_lead,
@@ -34,6 +37,7 @@ from db.queries import (
 router = APIRouter(prefix="/api/leads", tags=["leads"])
 
 MAX_PAGE_SIZE = 200
+MAX_BULK_IDS = 100
 VALID_STAGES = {"New", "Qualified", "Contacted", "Follow-up", "Closed-Won", "Closed-Lost"}
 VALID_BUSINESS_TYPES = ["restaurant", "bar", "retail", "salon", "cafe", "bakery", "gym", "spa", "other"]
 
@@ -132,13 +136,15 @@ def export_leads(
     max_score: Annotated[int | None, Query(alias="maxScore")] = None,
 ):
     """Export filtered leads as CSV download."""
+    export_limit = 10000
+    total = count_leads(conn, stage=stage, county=county, min_score=min_score, max_score=max_score)
     rows = get_leads(
         conn,
         stage=stage,
         county=county,
         min_score=min_score,
         max_score=max_score,
-        limit=10000,
+        limit=export_limit,
     )
 
     if not rows:
@@ -156,10 +162,14 @@ def export_leads(
     writer.writeheader()
     writer.writerows(rows)
 
+    headers = {"Content-Disposition": "attachment; filename=leads.csv"}
+    if total > export_limit:
+        headers["X-Truncated"] = f"true; total={total}; exported={export_limit}"
+
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=leads.csv"},
+        headers=headers,
     )
 
 
@@ -214,6 +224,10 @@ def scan_for_duplicates(
     limit: int = 100,
 ):
     """Scan for new duplicate suggestions."""
+    if threshold < 0.0 or threshold > 1.0:
+        raise HTTPException(status_code=400, detail="threshold must be between 0.0 and 1.0")
+    if limit < 1 or limit > 1000:
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 1000")
     count = find_duplicates(conn, threshold, limit)
     return {"new_suggestions": count, "threshold": threshold}
 
@@ -355,6 +369,43 @@ def quick_stage_update(
     return {"id": lead_id, "stage": stage}
 
 
+@router.post("/{lead_id}/mark-chain")
+def mark_as_chain(
+    lead_id: int,
+    conn: Annotated[sqlite3.Connection, Depends(get_db)],
+):
+    """Mark a lead as a chain/franchise.
+
+    Adds the business name to chains.yaml (so future pipeline runs filter it)
+    and soft-deletes the lead.
+    """
+    lead = get_lead(conn, lead_id)
+    if lead is None:
+        raise HTTPException(status_code=404, detail=f"Lead {lead_id} not found")
+
+    business_name = lead["business_name"]
+
+    # Add to chains.yaml
+    try:
+        with open(CHAINS_YAML, "r", encoding="utf-8") as fh:
+            data = yaml.safe_load(fh) or {}
+        chains = data.get("chains", [])
+
+        # Check if already in the list (case-insensitive)
+        if not any(c.lower() == business_name.lower() for c in chains):
+            chains.append(business_name)
+            data["chains"] = chains
+            with open(CHAINS_YAML, "w", encoding="utf-8") as fh:
+                yaml.dump(data, fh, default_flow_style=False, allow_unicode=True)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to update chains config: {exc}")
+
+    # Soft-delete the lead
+    soft_delete_leads(conn, [lead_id])
+
+    return {"id": lead_id, "business_name": business_name, "action": "marked_as_chain"}
+
+
 @router.post("/bulk")
 def bulk_update_leads(
     conn: Annotated[sqlite3.Connection, Depends(get_db)],
@@ -365,6 +416,9 @@ def bulk_update_leads(
     """Bulk update stage and/or county for multiple leads."""
     if not ids:
         raise HTTPException(status_code=400, detail="Must provide at least one lead ID")
+
+    if len(ids) > MAX_BULK_IDS:
+        raise HTTPException(status_code=400, detail=f"Cannot bulk update more than {MAX_BULK_IDS} leads at once")
 
     if stage is None and county is None:
         raise HTTPException(status_code=400, detail="Must provide stage or county")
@@ -404,6 +458,9 @@ def bulk_delete_leads(
     """Soft-delete multiple leads."""
     if not ids:
         raise HTTPException(status_code=400, detail="Must provide at least one lead ID")
+
+    if len(ids) > MAX_BULK_IDS:
+        raise HTTPException(status_code=400, detail=f"Cannot bulk delete more than {MAX_BULK_IDS} leads at once")
 
     try:
         deleted = soft_delete_leads(conn, ids)

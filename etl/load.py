@@ -17,6 +17,7 @@ def run_load(
     raw_extracts: list[dict],
     run_id: int,
     conn: sqlite3.Connection | None = None,
+    credits_used: int = 0,
 ) -> dict:
     """
     Main load entry point.
@@ -86,6 +87,7 @@ def run_load(
             leads_dupes=leads_dupes,
             error_message=None,
             sources_queried=sources_queried,
+            credits_used=credits_used,
             commit=False,
         )
 

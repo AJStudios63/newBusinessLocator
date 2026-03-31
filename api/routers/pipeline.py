@@ -70,6 +70,5 @@ def trigger_pipeline_run(background_tasks: BackgroundTasks):
         if _pipeline_status["running"]:
             return {"message": "Pipeline already running", "running": True}
         _pipeline_status["running"] = True
-
-    background_tasks.add_task(_run_pipeline_task)
+        background_tasks.add_task(_run_pipeline_task)
     return {"message": "Pipeline started", "running": True}

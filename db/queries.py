@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import sqlite3
 from typing import Sequence
@@ -678,6 +680,48 @@ def insert_seen_url(
 
 
 # ---------------------------------------------------------------------------
+# Search cache
+# ---------------------------------------------------------------------------
+
+
+def get_cached_search(
+    conn: sqlite3.Connection,
+    query: str,
+    ttl_hours: int = 24,
+) -> list[dict] | None:
+    """Return cached search results if fresh enough, else None."""
+    query_hash = hashlib.sha256(query.encode("utf-8")).hexdigest()[:32]
+    row = conn.execute(
+        "SELECT results_json, cached_at FROM search_cache "
+        "WHERE query_hash = ? AND cached_at > datetime('now', ?);",
+        (query_hash, f"-{ttl_hours} hours"),
+    ).fetchone()
+    if row:
+        try:
+            return json.loads(row["results_json"])
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return None
+
+
+def set_cached_search(
+    conn: sqlite3.Connection,
+    query: str,
+    results: list[dict],
+    commit: bool = True,
+) -> None:
+    """Store search results in cache."""
+    query_hash = hashlib.sha256(query.encode("utf-8")).hexdigest()[:32]
+    conn.execute(
+        "INSERT OR REPLACE INTO search_cache (query_hash, query_text, results_json) "
+        "VALUES (?, ?, ?);",
+        (query_hash, query, json.dumps(results)),
+    )
+    if commit:
+        conn.commit()
+
+
+# ---------------------------------------------------------------------------
 # Pipeline runs
 # ---------------------------------------------------------------------------
 
@@ -701,6 +745,7 @@ def update_pipeline_run(
     leads_dupes: int,
     error_message: str | None = None,
     sources_queried: str | None = None,
+    credits_used: int = 0,
     commit: bool = True,
 ) -> None:
     """Finalise a pipeline run row with results and set run_finished_at to now."""
@@ -711,10 +756,11 @@ def update_pipeline_run(
         "leads_found       = ?, "
         "leads_new         = ?, "
         "leads_dupes       = ?, "
+        "credits_used      = ?, "
         "error_message     = ?, "
         "sources_queried   = ? "
         "WHERE id = ?;",
-        (status, leads_found, leads_new, leads_dupes, error_message, sources_queried, run_id),
+        (status, leads_found, leads_new, leads_dupes, credits_used, error_message, sources_queried, run_id),
     )
     if commit:
         conn.commit()
@@ -856,19 +902,40 @@ def get_duplicate_suggestions(
     status: str = "pending",
     limit: int = 20,
 ) -> list[dict]:
-    """Get duplicate suggestions with full lead data.
+    """Get duplicate suggestions with full lead data via a single JOIN query.
 
     Returns list of dicts with keys: id, lead_a, lead_b, similarity_score, status, created_at
     """
     rows = conn.execute(
         """
         SELECT
-            ds.id,
-            ds.lead_id_a,
-            ds.lead_id_b,
+            ds.id           AS ds_id,
             ds.similarity_score,
-            ds.status,
-            ds.created_at
+            ds.status       AS ds_status,
+            ds.created_at   AS ds_created_at,
+            la.*,
+            lb.id           AS lb_id,
+            lb.fingerprint  AS lb_fingerprint,
+            lb.business_name AS lb_business_name,
+            lb.business_type AS lb_business_type,
+            lb.raw_type     AS lb_raw_type,
+            lb.address      AS lb_address,
+            lb.city         AS lb_city,
+            lb.state        AS lb_state,
+            lb.zip_code     AS lb_zip_code,
+            lb.county       AS lb_county,
+            lb.license_date AS lb_license_date,
+            lb.pos_score    AS lb_pos_score,
+            lb.stage        AS lb_stage,
+            lb.source_url   AS lb_source_url,
+            lb.source_type  AS lb_source_type,
+            lb.source_batch_id AS lb_source_batch_id,
+            lb.notes        AS lb_notes,
+            lb.created_at   AS lb_created_at,
+            lb.updated_at   AS lb_updated_at,
+            lb.contacted_at AS lb_contacted_at,
+            lb.closed_at    AS lb_closed_at,
+            lb.deleted_at   AS lb_deleted_at
         FROM duplicate_suggestions ds
         JOIN leads la ON ds.lead_id_a = la.id AND la.deleted_at IS NULL
         JOIN leads lb ON ds.lead_id_b = lb.id AND lb.deleted_at IS NULL
@@ -879,19 +946,29 @@ def get_duplicate_suggestions(
         (status, limit),
     ).fetchall()
 
+    _LEAD_COLS = [
+        "id", "fingerprint", "business_name", "business_type", "raw_type",
+        "address", "city", "state", "zip_code", "county", "license_date",
+        "pos_score", "stage", "source_url", "source_type", "source_batch_id",
+        "notes", "created_at", "updated_at", "contacted_at", "closed_at", "deleted_at",
+    ]
+
     suggestions = []
     for row in rows:
-        lead_a = get_lead(conn, row["lead_id_a"])
-        lead_b = get_lead(conn, row["lead_id_b"])
-        if lead_a and lead_b:
-            suggestions.append({
-                "id": row["id"],
-                "lead_a": lead_a,
-                "lead_b": lead_b,
-                "similarity_score": row["similarity_score"],
-                "status": row["status"],
-                "created_at": row["created_at"],
-            })
+        row_dict = dict(row)
+        # lead_a comes from la.* (unprefixed columns)
+        lead_a = {col: row_dict.get(col) for col in _LEAD_COLS}
+        # lead_b comes from lb_ prefixed columns
+        lead_b = {col: row_dict.get(f"lb_{col}") for col in _LEAD_COLS}
+
+        suggestions.append({
+            "id": row_dict["ds_id"],
+            "lead_a": lead_a,
+            "lead_b": lead_b,
+            "similarity_score": row_dict["similarity_score"],
+            "status": row_dict["ds_status"],
+            "created_at": row_dict["ds_created_at"],
+        })
 
     return suggestions
 

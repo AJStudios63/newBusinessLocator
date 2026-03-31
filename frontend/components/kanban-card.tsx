@@ -39,6 +39,8 @@ export function KanbanCard({ lead, onClick }: KanbanCardProps) {
       style={style}
       {...attributes}
       {...listeners}
+      role="button"
+      aria-label={`${lead.business_name}, score ${lead.pos_score}, ${lead.city || "unknown city"}`}
       className="glass rounded-lg p-3 space-y-2 cursor-grab active:cursor-grabbing glow-hover transition-all duration-200"
       onClick={onClick}
     >
@@ -51,7 +53,9 @@ export function KanbanCard({ lead, onClick }: KanbanCardProps) {
           {lead.pos_score}
         </Badge>
       </div>
-      <p className="text-xs text-muted-foreground">{lead.city || "Unknown"}</p>
+      <p className="text-xs text-muted-foreground">
+        {lead.city || "Unknown"}{lead.county ? `, ${lead.county}` : ""}
+      </p>
     </div>
   );
 }

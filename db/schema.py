@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS pipeline_runs (
     leads_found      INTEGER DEFAULT 0,
     leads_new        INTEGER DEFAULT 0,
     leads_dupes      INTEGER DEFAULT 0,
+    credits_used     INTEGER DEFAULT 0,
     error_message    TEXT,
     sources_queried  TEXT
 );
@@ -67,6 +68,15 @@ CREATE TABLE IF NOT EXISTS stage_history (
     old_stage  TEXT,
     new_stage  TEXT,
     changed_at TEXT DEFAULT (datetime('now'))
+);
+"""
+
+CREATE_SEARCH_CACHE = """
+CREATE TABLE IF NOT EXISTS search_cache (
+    query_hash     TEXT PRIMARY KEY,
+    query_text     TEXT NOT NULL,
+    results_json   TEXT NOT NULL,
+    cached_at      TEXT DEFAULT (datetime('now'))
 );
 """
 
@@ -98,6 +108,7 @@ CREATE INDEX IF NOT EXISTS idx_stage_history_lead     ON stage_history(lead_id);
 CREATE INDEX IF NOT EXISTS idx_dupe_suggestions_status ON duplicate_suggestions(status);
 CREATE INDEX IF NOT EXISTS idx_dupe_suggestions_lead_a ON duplicate_suggestions(lead_id_a);
 CREATE INDEX IF NOT EXISTS idx_dupe_suggestions_lead_b ON duplicate_suggestions(lead_id_b);
+CREATE INDEX IF NOT EXISTS idx_leads_active ON leads(deleted_at) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_leads_geocoded ON leads(latitude, longitude) WHERE latitude IS NOT NULL;
 """
 
@@ -143,6 +154,7 @@ DDL_SCRIPT = (
     + CREATE_PIPELINE_RUNS
     + CREATE_SEEN_URLS
     + CREATE_STAGE_HISTORY
+    + CREATE_SEARCH_CACHE
     + CREATE_DUPLICATE_SUGGESTIONS
     + CREATE_INDEXES
     + CREATE_FTS
@@ -190,6 +202,10 @@ def init_db(db_path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db_path), timeout=30.0)
     conn.execute("PRAGMA busy_timeout = 30000")
     conn.executescript(DDL_SCRIPT)
+
+    # Migrations for existing databases
+    _migrate_add_column(conn, "pipeline_runs", "credits_used", "INTEGER DEFAULT 0")
+
     conn.commit()
     conn.row_factory = sqlite3.Row
 
@@ -198,3 +214,11 @@ def init_db(db_path: str | Path) -> sqlite3.Connection:
     _migrate_add_column(conn, "leads", "longitude", "REAL")
 
     return conn
+
+
+def _migrate_add_column(conn: sqlite3.Connection, table: str, column: str, col_type: str) -> None:
+    """Add a column to a table if it doesn't already exist."""
+    cursor = conn.execute(f"PRAGMA table_info({table})")
+    columns = {row[1] for row in cursor.fetchall()}
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")

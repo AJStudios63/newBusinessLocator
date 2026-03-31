@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
@@ -20,9 +21,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { updateLead, updateLeadFields, getLeadsByBatch } from "@/lib/api";
+import { updateLead, updateLeadFields, getLeadsByBatch, markAsChain } from "@/lib/api";
 import { STAGES, BUSINESS_TYPES, type Lead, type Stage, type LeadFieldUpdate } from "@/lib/types";
-import { Pencil, X, Users, ExternalLink } from "lucide-react";
+import { Pencil, X, Users, ExternalLink, Ban } from "lucide-react";
 import Link from "next/link";
 import { ScoreBadge } from "@/components/score-badge";
 import { formatLocalDateTime } from "@/lib/utils";
@@ -38,29 +39,23 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
   const [editedFields, setEditedFields] = useState<LeadFieldUpdate>({});
   const [newStage, setNewStage] = useState<Stage | null>(null);
   const [note, setNote] = useState("");
-  const [batchCount, setBatchCount] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
+  const { data: batchData } = useQuery({
+    queryKey: ["batch", lead?.source_batch_id],
+    queryFn: () => getLeadsByBatch(lead!.source_batch_id!),
+    enabled: !!lead?.source_batch_id,
+    staleTime: 30_000,
+  });
+  const batchCount = batchData && batchData.count > 1 ? batchData.count - 1 : null;
+
   useEffect(() => {
-    let cancelled = false;
     if (lead) {
       setIsEditing(false);
       setEditedFields({});
       setNewStage(null);
       setNote("");
-      if (lead.source_batch_id) {
-        getLeadsByBatch(lead.source_batch_id).then((data) => {
-          if (!cancelled) {
-            setBatchCount(data.count > 1 ? data.count - 1 : null);
-          }
-        }).catch(() => {
-          if (!cancelled) setBatchCount(null);
-        });
-      } else {
-        setBatchCount(null);
-      }
     }
-    return () => { cancelled = true; };
   }, [lead]);
 
   const stageMutation = useMutation({
@@ -94,6 +89,20 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
     },
     onError: (error: Error) => {
       toast.error(error.message || "Failed to update lead fields");
+    },
+  });
+
+  const chainMutation = useMutation({
+    mutationFn: () => markAsChain(lead!.id),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["kanban"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+      toast.success(`"${data.business_name}" added to chain blocklist`);
+      onClose();
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to mark as chain");
     },
   });
 
@@ -135,6 +144,9 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
               </Button>
             )}
           </div>
+          <SheetDescription className="sr-only">
+            View and edit lead details
+          </SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
@@ -317,6 +329,22 @@ export function LeadDetailPanel({ lead, open, onClose }: LeadDetailPanelProps) {
                   className="w-full"
                 >
                   {stageMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+
+                <div className="border-t border-border/50" />
+
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (window.confirm(`Mark "${lead.business_name}" as a chain? This will remove it and block it from future pipeline runs.`)) {
+                      chainMutation.mutate();
+                    }
+                  }}
+                  disabled={chainMutation.isPending}
+                  className="w-full text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  <Ban className="h-4 w-4 mr-2" />
+                  {chainMutation.isPending ? "Marking..." : "Mark as Chain"}
                 </Button>
               </div>
             </>

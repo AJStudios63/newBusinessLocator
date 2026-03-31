@@ -15,7 +15,8 @@ from db.queries import (
     get_stage_history, get_pipeline_runs,
 )
 from utils.logging_config import setup_logging
-from etl.transform import classify, score_lead, _load_yaml
+from etl.transform import classify, score_lead, _load_yaml, is_garbage_name, _strip_markdown
+from utils.parsers import _find_tn_city
 
 
 @click.group()
@@ -218,18 +219,27 @@ def export(stage, county, min_score, output):
 
 @cli.command()
 def rescore():
-    """Re-classify and re-score all existing leads.
+    """Re-classify, re-score, and clean up all existing leads.
 
-    Applies the updated classify() logic (with business-name fallback)
-    to every lead in the database, then recalculates pos_score.
-    Prints a summary of how many leads were re-classified.
+    Performs the following in order:
+    1. Soft-deletes garbage leads (article titles, source names, markdown artifacts).
+    2. Strips markdown formatting from remaining business names.
+    3. Clears city/address fields containing non-address scraped text.
+    4. Re-extracts city from address fields using _find_tn_city().
+    5. Re-classifies business types and recalculates pos_score.
     """
-    # Load scoring configuration
+    from config.settings import SOURCES_YAML
     scoring = _load_yaml(SCORING_YAML)
+    sources = _load_yaml(SOURCES_YAML)
     type_keywords = scoring.get("business_type_keywords", {})
 
+    # Build city-to-county map for county inference after city extraction
+    city_to_county: dict[str, str] = {}
+    for county_name, cities in sources.get("counties", {}).items():
+        for city in cities:
+            city_to_county[city.lower()] = county_name
+
     conn = init_db(DB_PATH)
-    # Fetch all leads (high limit to get them all)
     all_leads = get_leads(conn, limit=100000, sort="id")
 
     if not all_leads:
@@ -237,31 +247,100 @@ def rescore():
         conn.close()
         return
 
-    click.echo(f"Rescoring {len(all_leads)} leads...")
+    click.echo(f"Processing {len(all_leads)} leads...")
 
+    # --- Phase 1: Soft-delete garbage leads ---
+    garbage_ids = []
+    for lead in all_leads:
+        if is_garbage_name(lead.get("business_name", "")):
+            garbage_ids.append(lead["id"])
+
+    if garbage_ids:
+        placeholders = ",".join("?" * len(garbage_ids))
+        conn.execute(
+            f"UPDATE leads SET deleted_at = datetime('now'), updated_at = datetime('now') "
+            f"WHERE id IN ({placeholders}) AND deleted_at IS NULL;",
+            garbage_ids,
+        )
+        conn.commit()
+        click.echo(f"  Soft-deleted {len(garbage_ids)} garbage leads")
+
+    # Reload non-deleted leads for remaining phases
+    all_leads = get_leads(conn, limit=100000, sort="id")
+    click.echo(f"  {len(all_leads)} active leads remaining")
+
+    # --- Phase 2 & 3 & 4 & 5: Clean, fix city, re-classify, re-score ---
+    markdown_fixed = 0
+    city_fixed = 0
+    city_cleared = 0
+    county_fixed = 0
     reclassified_count = 0
     score_changes = []
 
+    # Heuristic to detect scraped non-address/non-city text
+    _GARBAGE_TEXT_RE = re.compile(
+        r"(defined as|proposed regulation|based on|available science|"
+        r"natural resources|agriculture|energy,|the purpose of)",
+        re.IGNORECASE,
+    )
+
     for lead in all_leads:
+        changed = False
+        lead_id = lead["id"]
+        biz_name = lead.get("business_name") or ""
+
+        # Phase 2: Strip markdown from business names
+        stripped = _strip_markdown(biz_name)
+        if stripped != biz_name:
+            lead["business_name"] = stripped
+            markdown_fixed += 1
+            changed = True
+
+        # Phase 3: Clear garbage city/address fields
+        city_val = lead.get("city") or ""
+        addr_val = lead.get("address") or ""
+        if city_val and _GARBAGE_TEXT_RE.search(city_val):
+            lead["city"] = None
+            city_cleared += 1
+            changed = True
+        if addr_val and _GARBAGE_TEXT_RE.search(addr_val):
+            lead["address"] = None
+            changed = True
+
+        # Phase 4: Re-extract city from address if city is empty
+        if not lead.get("city") and lead.get("address"):
+            found_city = _find_tn_city(lead["address"])
+            if found_city:
+                lead["city"] = found_city
+                city_fixed += 1
+                changed = True
+
+        # Infer county from city if county is empty
+        if not lead.get("county") and lead.get("city"):
+            inferred = city_to_county.get(lead["city"].lower().strip())
+            if inferred:
+                lead["county"] = inferred
+                county_fixed += 1
+                changed = True
+
+        # Phase 5: Re-classify and re-score
         old_type = lead.get("business_type")
         old_score = lead.get("pos_score", 0)
 
-        # Re-classify (mutates the lead dict)
         classify(lead, type_keywords)
         new_type = lead.get("business_type")
 
-        # Re-score (mutates the lead dict)
         score_lead(lead, scoring)
         new_score = lead.get("pos_score", 0)
 
-        # Check if anything changed
         type_changed = old_type != new_type
         score_changed = old_score != new_score
 
         if type_changed or score_changed:
             reclassified_count += 1
+            changed = True
             score_changes.append({
-                "id": lead["id"],
+                "id": lead_id,
                 "name": lead.get("business_name", ""),
                 "old_type": old_type,
                 "new_type": new_type,
@@ -269,10 +348,13 @@ def rescore():
                 "new_score": new_score,
             })
 
-            # Update the database
+        if changed:
             conn.execute(
-                "UPDATE leads SET business_type = ?, pos_score = ?, updated_at = datetime('now') WHERE id = ?;",
-                (new_type, new_score, lead["id"]),
+                "UPDATE leads SET business_name = ?, business_type = ?, pos_score = ?, "
+                "city = ?, county = ?, address = ?, updated_at = datetime('now') WHERE id = ?;",
+                (lead.get("business_name"), lead.get("business_type"),
+                 lead.get("pos_score", 0), lead.get("city"), lead.get("county"),
+                 lead.get("address"), lead_id),
             )
 
     conn.commit()
@@ -280,14 +362,18 @@ def rescore():
 
     # Print summary
     click.echo(f"\n=== RESCORE SUMMARY ===")
-    click.echo(f"  Total leads processed: {len(all_leads)}")
-    click.echo(f"  Leads re-classified:   {reclassified_count}")
+    click.echo(f"  Garbage leads deleted:  {len(garbage_ids)}")
+    click.echo(f"  Markdown names fixed:   {markdown_fixed}")
+    click.echo(f"  Garbage fields cleared: {city_cleared}")
+    click.echo(f"  Cities re-extracted:    {city_fixed}")
+    click.echo(f"  Counties inferred:      {county_fixed}")
+    click.echo(f"  Leads re-classified:    {reclassified_count}")
 
     if score_changes:
-        click.echo(f"\n  Changes:")
+        click.echo(f"\n  Type/Score changes (showing first 30):")
         click.echo(f"  {'ID':<5} {'Business Name':<35} {'Old Type':<12} {'New Type':<12} {'Old':<5} {'New':<5}")
         click.echo(f"  {'-'*5} {'-'*35} {'-'*12} {'-'*12} {'-'*5} {'-'*5}")
-        for change in score_changes:
+        for change in score_changes[:30]:
             click.echo(
                 f"  {change['id']:<5} "
                 f"{str(change['name'])[:34]:<35} "
@@ -296,6 +382,8 @@ def rescore():
                 f"{change['old_score']:<5} "
                 f"{change['new_score']:<5}"
             )
+        if len(score_changes) > 30:
+            click.echo(f"  ... and {len(score_changes) - 30} more")
     else:
         click.echo("\n  No leads required re-classification.")
 

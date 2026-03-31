@@ -112,6 +112,14 @@ export async function bulkDeleteLeads(
   });
 }
 
+export async function markAsChain(
+  id: number
+): Promise<{ id: number; business_name: string; action: string }> {
+  return fetchJson(`${API_BASE}/leads/${id}/mark-chain`, {
+    method: "POST",
+  });
+}
+
 export function getExportUrl(filters: LeadFilters = {}): string {
   const params = new URLSearchParams();
   if (filters.stage) params.set("stage", filters.stage);

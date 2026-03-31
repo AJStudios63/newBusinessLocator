@@ -14,8 +14,11 @@ DEFAULT_TIMEOUT: tuple[int, int] = (5, 20)
 
 # Rate limiting configuration
 RATE_LIMIT_DELAY: float = 0.5  # seconds between API calls
-MAX_RETRIES: int = 3  # maximum retry attempts for 429 responses
-INITIAL_BACKOFF: float = 1.0  # initial backoff delay in seconds for 429 responses
+MAX_RETRIES: int = 3  # maximum retry attempts for retryable responses
+INITIAL_BACKOFF: float = 1.0  # initial backoff delay in seconds
+
+# HTTP status codes that are safe to retry (transient server errors)
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 # User-Agent header for HTTP requests
 USER_AGENT: str = "newBusinessLocator/1.0"
@@ -27,6 +30,7 @@ class TavilyClient:
         self.api_key: str = api_key or TAVILY_API_KEY
         if not self.api_key:
             raise ValueError("TAVILY_API_KEY not set")
+        self.credits_used: int = 0
 
     def search(self, query: str, max_results: int = 10) -> list[dict]:
         """POST to {BASE_URL}/search and return the 'results' list.
@@ -45,7 +49,7 @@ class TavilyClient:
             "exclude_domains": [],
         }
 
-        # Retry with exponential backoff for 429 responses
+        # Retry with exponential backoff for transient errors
         for attempt in range(MAX_RETRIES):
             try:
                 response = requests.post(
@@ -54,16 +58,25 @@ class TavilyClient:
                     headers=DEFAULT_HEADERS,
                     timeout=DEFAULT_TIMEOUT,
                 )
-                if response.status_code == 429:
+                if response.status_code in RETRYABLE_STATUS_CODES:
                     if attempt < MAX_RETRIES - 1:
                         backoff_delay = INITIAL_BACKOFF * (2 ** attempt)
-                        logger.debug(f"Rate limited (429), retrying in {backoff_delay}s (attempt {attempt + 1}/{MAX_RETRIES})")
+                        logger.debug(f"Retryable error ({response.status_code}), retrying in {backoff_delay}s (attempt {attempt + 1}/{MAX_RETRIES})")
                         time.sleep(backoff_delay)
                         continue
-                    logger.warning(f"Rate limited (429) after {MAX_RETRIES} attempts for search query")
+                    logger.warning(f"HTTP {response.status_code} after {MAX_RETRIES} attempts for search query")
                     return []
                 response.raise_for_status()
+                self.credits_used += 1  # search = 1 credit
                 break
+            except (requests.ConnectionError, requests.Timeout) as e:
+                if attempt < MAX_RETRIES - 1:
+                    backoff_delay = INITIAL_BACKOFF * (2 ** attempt)
+                    logger.debug(f"Connection error, retrying in {backoff_delay}s (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+                    time.sleep(backoff_delay)
+                    continue
+                logger.error(f"Connection failed after {MAX_RETRIES} attempts for search: {e}")
+                return []
             except requests.RequestException as e:
                 logger.error(f"HTTP request failed for search: {e}")
                 return []
@@ -102,7 +115,7 @@ class TavilyClient:
             "urls": url,  # API expects 'urls' (can be string or array)
         }
 
-        # Retry with exponential backoff for 429 responses
+        # Retry with exponential backoff for transient errors
         for attempt in range(MAX_RETRIES):
             try:
                 response = requests.post(
@@ -111,16 +124,25 @@ class TavilyClient:
                     headers=DEFAULT_HEADERS,
                     timeout=DEFAULT_TIMEOUT,
                 )
-                if response.status_code == 429:
+                if response.status_code in RETRYABLE_STATUS_CODES:
                     if attempt < MAX_RETRIES - 1:
                         backoff_delay = INITIAL_BACKOFF * (2 ** attempt)
-                        logger.debug(f"Rate limited (429), retrying in {backoff_delay}s (attempt {attempt + 1}/{MAX_RETRIES})")
+                        logger.debug(f"Retryable error ({response.status_code}), retrying in {backoff_delay}s (attempt {attempt + 1}/{MAX_RETRIES})")
                         time.sleep(backoff_delay)
                         continue
-                    logger.warning(f"Rate limited (429) after {MAX_RETRIES} attempts for extract: {url}")
+                    logger.warning(f"HTTP {response.status_code} after {MAX_RETRIES} attempts for extract: {url}")
                     return None
                 response.raise_for_status()
+                self.credits_used += 2  # extract = 2 credits
                 break
+            except (requests.ConnectionError, requests.Timeout) as e:
+                if attempt < MAX_RETRIES - 1:
+                    backoff_delay = INITIAL_BACKOFF * (2 ** attempt)
+                    logger.debug(f"Connection error, retrying in {backoff_delay}s (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+                    time.sleep(backoff_delay)
+                    continue
+                logger.error(f"Connection failed after {MAX_RETRIES} attempts for extract {url}: {e}")
+                return None
             except requests.RequestException as e:
                 logger.error(f"HTTP request failed for extract {url}: {e}")
                 return None

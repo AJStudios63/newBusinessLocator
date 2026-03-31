@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from uuid import uuid4
 
 # Legal suffixes to strip (order matters — check multi-word first)
 LEGAL_SUFFIXES: list[str] = ["l.l.c.", "llc", "inc.", "inc", "corp.", "corp", "ltd.", "ltd", "co.", "co"]
@@ -56,19 +57,23 @@ def normalize_city(city: str) -> str:
     return city.lower().strip()
 
 
-def generate_fingerprint(name: str, city: str) -> str:
+def generate_fingerprint(name: str, city: str, source_url: str = "") -> str:
     """Generate a short fingerprint for deduplication.
 
     Concatenates normalize_name(name) and normalize_city(city) separated by a
     pipe character, then returns the first 32 hex characters of the SHA-256
     digest (128 bits for better collision resistance).
 
-    If *name* or *city* is None or empty, the empty string is used for that
-    portion so the fingerprint can still be computed.
+    If *name* is empty or None, includes source_url in the fingerprint to
+    prevent collisions between distinct records that lack a business name.
     """
     norm_name = normalize_name(name) if name else ""
     norm_city = normalize_city(city) if city else ""
 
-    raw = f"{norm_name}|{norm_city}"
+    if norm_name:
+        raw = f"{norm_name}|{norm_city}"
+    else:
+        # Include source_url to avoid collisions for nameless records
+        raw = f"|{norm_city}|{source_url or uuid4().hex}"
     digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     return digest[:32]  # 128 bits for better collision resistance

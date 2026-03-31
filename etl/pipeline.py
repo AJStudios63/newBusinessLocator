@@ -20,6 +20,29 @@ from utils.logging_config import get_logger
 logger = get_logger("pipeline")
 
 
+def _cleanup_stale_runs(conn) -> int:
+    """Mark any pipeline runs stuck in 'running' for >30 minutes as 'failed'.
+
+    Returns the number of runs cleaned up.
+    """
+    cur = conn.execute(
+        "UPDATE pipeline_runs SET "
+        "status = 'failed', "
+        "run_finished_at = datetime('now'), "
+        "error_message = 'Stuck run cleaned up (exceeded 30 min timeout)' "
+        "WHERE status = 'running' "
+        "AND run_started_at < datetime('now', '-30 minutes');"
+    )
+    try:
+        count = int(cur.rowcount)
+    except (TypeError, ValueError):
+        count = 0
+    if count > 0:
+        conn.commit()
+        logger.info(f"Cleaned up {count} stale pipeline run(s)")
+    return count
+
+
 def run_pipeline(dry_run: bool = False) -> dict:
     """
     Execute the full ETL pipeline.
@@ -53,12 +76,13 @@ def run_pipeline(dry_run: bool = False) -> dict:
         # --- open DB and create audit row (skip on dry_run) -----------------
         if not dry_run:
             conn = init_db(DB_PATH)
+            _cleanup_stale_runs(conn)
             run_id = insert_pipeline_run(conn, run_started_at)
             logger.debug(f"Created pipeline run with id={run_id}")
 
         # --- EXTRACT --------------------------------------------------------
         logger.info("Starting extract phase")
-        raw_extracts = run_extract(conn=conn, use_db=not dry_run)
+        raw_extracts, credits_used = run_extract(conn=conn, use_db=not dry_run)
 
         # --- TRANSFORM ------------------------------------------------------
         logger.info("Starting transform phase")
@@ -82,8 +106,8 @@ def run_pipeline(dry_run: bool = False) -> dict:
                 "error": None,
             }
 
-        logger.info("Starting load phase")
-        counts = run_load(business_records, raw_extracts, run_id, conn=conn)
+        logger.info(f"Starting load phase (credits_used={credits_used})")
+        counts = run_load(business_records, raw_extracts, run_id, conn=conn, credits_used=credits_used)
 
         logger.info(f"Pipeline completed successfully: run_id={run_id}, found={counts['leads_found']}, new={counts['leads_new']}, dupes={counts['leads_dupes']}")
         return {

@@ -1,6 +1,5 @@
 "use client";
 
-import { use } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
@@ -30,11 +29,11 @@ import { useState } from "react";
 import { STAGES, type Lead, type Stage } from "@/lib/types";
 
 interface BatchPageProps {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
 export default function BatchPage({ params }: BatchPageProps) {
-  const { id } = use(params);
+  const { id } = params;
   const router = useRouter();
   const queryClient = useQueryClient();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);

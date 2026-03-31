@@ -27,15 +27,19 @@ import { STAGES, type Lead, type Stage, type KanbanData } from "@/lib/types";
 interface DroppableColumnProps {
   stage: Stage;
   leads: Lead[];
+  totalCount?: number;
   onCardClick: (lead: Lead) => void;
 }
 
-function DroppableColumn({ stage, leads, onCardClick }: DroppableColumnProps) {
+function DroppableColumn({ stage, leads, totalCount, onCardClick }: DroppableColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
+  const displayCount = totalCount ?? leads.length;
 
   return (
     <div
       ref={setNodeRef}
+      role="region"
+      aria-label={`${stage} stage, ${displayCount} leads`}
       className={`flex-shrink-0 w-72 rounded-xl p-3 transition-all duration-200 ${
         isOver
           ? "glass ring-2 ring-primary/50 shadow-lg shadow-primary/10"
@@ -45,7 +49,7 @@ function DroppableColumn({ stage, leads, onCardClick }: DroppableColumnProps) {
       <div className="flex items-center justify-between mb-3 px-1">
         <h3 className="font-semibold text-sm">{stage}</h3>
         <span className="text-xs text-muted-foreground glass-subtle rounded-full px-2 py-0.5">
-          {leads.length}
+          {displayCount}
         </span>
       </div>
       <SortableContext
@@ -166,6 +170,7 @@ export function KanbanBoard({ data, onCardClick }: KanbanBoardProps) {
             key={stage}
             stage={stage}
             leads={data.columns[stage]}
+            totalCount={data.counts?.[stage]}
             onCardClick={onCardClick}
           />
         ))}

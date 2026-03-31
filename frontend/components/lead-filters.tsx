@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Select,
   SelectContent,
@@ -22,28 +22,25 @@ interface LeadFiltersProps {
 
 export function LeadFiltersBar({ filters, onFilterChange, counties }: LeadFiltersProps) {
   const [searchInput, setSearchInput] = useState(filters.q || "");
-  const filtersRef = useRef(filters);
-
-  useEffect(() => {
-    filtersRef.current = filters;
-  }, [filters]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      const currentQuery = filtersRef.current.q || "";
+      const currentQuery = filters.q || "";
       if (searchInput !== currentQuery) {
-        onFilterChange({ ...filtersRef.current, q: searchInput || undefined });
+        onFilterChange({ ...filters, q: searchInput || undefined });
       }
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchInput, onFilterChange]);
+  }, [searchInput, filters, onFilterChange]);
 
   useEffect(() => {
-    if (filters.q !== searchInput) {
+    if (filters.q !== undefined && filters.q !== searchInput) {
       setSearchInput(filters.q || "");
     }
-  }, [filters.q, searchInput]);
+    // Only sync when filters.q changes externally (e.g. clear)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.q]);
 
   const clearSearch = useCallback(() => {
     setSearchInput("");
