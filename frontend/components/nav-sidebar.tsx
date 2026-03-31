@@ -11,6 +11,7 @@ import {
   Columns3,
   Play,
   Copy,
+  MapPin,
   Sun,
   Moon,
   Zap,
@@ -19,6 +20,7 @@ import {
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/leads", label: "Leads", icon: Users },
+  { href: "/map", label: "Map", icon: MapPin },
   { href: "/kanban", label: "Kanban", icon: Columns3 },
   { href: "/duplicates", label: "Duplicates", icon: Copy },
   { href: "/pipeline", label: "Pipeline", icon: Play },

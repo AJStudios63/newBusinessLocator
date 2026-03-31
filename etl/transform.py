@@ -18,6 +18,7 @@ from config.settings import SCORING_YAML, CHAINS_YAML, SOURCES_YAML
 from utils.parsers import parse_license_table, parse_clerk_table, parse_news_article, parse_snippet
 from utils.dedup import generate_fingerprint
 from utils.logging_config import get_logger
+from utils.geocoder import geocode_batch
 
 logger = get_logger("transform")
 
@@ -446,6 +447,9 @@ def run_transform(raw_extracts: list[dict]) -> list[dict]:
 
     logger.debug(f"Filtered {chains_filtered} chain records")
     logger.debug(f"Filtered {article_titles_filtered} garbage name records")
+
+    # 4b. Geocode (after filtering, before dedup — minimizes API calls)
+    geocode_batch(output_records)
 
     # 5. Deduplicate
     pre_dedup_count = len(output_records)

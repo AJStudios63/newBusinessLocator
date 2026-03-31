@@ -17,6 +17,7 @@ from db.queries import (
 from utils.logging_config import setup_logging
 from etl.transform import classify, score_lead, _load_yaml, is_garbage_name, _strip_markdown
 from utils.parsers import _find_tn_city
+from utils.geocoder import geocode_batch
 
 
 @click.group()
@@ -387,6 +388,62 @@ def rescore():
     else:
         click.echo("\n  No leads required re-classification.")
 
+    click.echo("")
+
+
+@cli.command()
+@click.option("--limit", default=0, type=int, help="Max leads to geocode (0=all).")
+@click.option("--force", is_flag=True, help="Re-geocode even if lat/lng already set.")
+def geocode(limit, force):
+    """Backfill geocoding for existing leads without coordinates."""
+    conn = init_db(DB_PATH)
+
+    if force:
+        where = "deleted_at IS NULL"
+    else:
+        where = "deleted_at IS NULL AND (latitude IS NULL OR longitude IS NULL)"
+
+    order = "ORDER BY pos_score DESC"
+    limit_clause = f"LIMIT {limit}" if limit > 0 else ""
+
+    rows = conn.execute(
+        f"SELECT * FROM leads WHERE {where} {order} {limit_clause};"
+    ).fetchall()
+    leads_to_geocode = [dict(row) for row in rows]
+
+    if not leads_to_geocode:
+        click.echo("No leads need geocoding.")
+        conn.close()
+        return
+
+    click.echo(f"Geocoding {len(leads_to_geocode)} leads (this takes ~{len(leads_to_geocode)} seconds at 1 req/sec)...")
+
+    def progress(done, total):
+        click.echo(f"  Progress: {done}/{total} geocoded...")
+
+    geocode_batch(leads_to_geocode, progress_callback=progress)
+
+    updated = 0
+    failed = 0
+    for lead in leads_to_geocode:
+        lat = lead.get("latitude")
+        lon = lead.get("longitude")
+        if lat is not None and lon is not None:
+            conn.execute(
+                "UPDATE leads SET latitude = ?, longitude = ?, updated_at = datetime('now') WHERE id = ?;",
+                (lat, lon, lead["id"]),
+            )
+            updated += 1
+        else:
+            failed += 1
+
+    conn.commit()
+    conn.close()
+
+    click.echo(f"\n=== GEOCODE SUMMARY ===")
+    click.echo(f"  Geocoded:  {updated}")
+    click.echo(f"  Failed:    {failed}")
+    click.echo(f"  Skipped:   {len(leads_to_geocode) - updated - failed}")
     click.echo("")
 
 
