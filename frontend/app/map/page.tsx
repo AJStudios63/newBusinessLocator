@@ -25,7 +25,7 @@ export default function MapPage() {
     try {
       const fullLead = await getLead(leadId);
       setSelectedLead(fullLead);
-    } catch (error) {
+    } catch {
       // Fallback to basic lead data from map if full fetch fails
       const mapLead = data?.leads.find((l) => l.id === leadId);
       if (mapLead) {

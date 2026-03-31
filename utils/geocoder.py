@@ -31,23 +31,23 @@ def _build_query_string(record: dict) -> str | None:
     Returns:
         Query string like "123 Main St, Nashville, TN, 37201" or None if no city
     """
-    city = record.get("city", "").strip()
+    city = (record.get("city") or "").strip()
     if not city:
         return None
 
     parts = []
 
-    address = record.get("address", "").strip()
+    address = (record.get("address") or "").strip()
     if address:
         parts.append(address)
 
     parts.append(city)
 
-    state = record.get("state", "TN").strip()
+    state = (record.get("state") or "TN").strip()
     if state:
         parts.append(state)
 
-    zip_code = record.get("zip_code", "").strip()
+    zip_code = (record.get("zip_code") or "").strip()
     if zip_code:
         parts.append(zip_code)
 

@@ -37,6 +37,7 @@ function createMarkerIcon(stage: Stage): L.DivIcon {
   });
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createClusterIcon(cluster: any): L.DivIcon {
   const count = cluster.getChildCount();
   return L.divIcon({

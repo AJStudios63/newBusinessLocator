@@ -109,7 +109,6 @@ CREATE INDEX IF NOT EXISTS idx_dupe_suggestions_status ON duplicate_suggestions(
 CREATE INDEX IF NOT EXISTS idx_dupe_suggestions_lead_a ON duplicate_suggestions(lead_id_a);
 CREATE INDEX IF NOT EXISTS idx_dupe_suggestions_lead_b ON duplicate_suggestions(lead_id_b);
 CREATE INDEX IF NOT EXISTS idx_leads_active ON leads(deleted_at) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_leads_geocoded ON leads(latitude, longitude) WHERE latitude IS NOT NULL;
 """
 
 # ---------------------------------------------------------------------------
@@ -213,12 +212,11 @@ def init_db(db_path: str | Path) -> sqlite3.Connection:
     _migrate_add_column(conn, "leads", "latitude", "REAL")
     _migrate_add_column(conn, "leads", "longitude", "REAL")
 
+    # Create index on geocoded columns (after migration ensures columns exist)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_leads_geocoded "
+        "ON leads(latitude, longitude) WHERE latitude IS NOT NULL;"
+    )
+    conn.commit()
+
     return conn
-
-
-def _migrate_add_column(conn: sqlite3.Connection, table: str, column: str, col_type: str) -> None:
-    """Add a column to a table if it doesn't already exist."""
-    cursor = conn.execute(f"PRAGMA table_info({table})")
-    columns = {row[1] for row in cursor.fetchall()}
-    if column not in columns:
-        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
