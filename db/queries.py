@@ -49,7 +49,9 @@ _INSERT_LEAD_SQL = (
 
 def insert_lead(conn: sqlite3.Connection, lead: dict, commit: bool = True) -> None:
     """Insert a single lead row; silently ignored if fingerprint already exists."""
-    conn.execute(_INSERT_LEAD_SQL, lead)
+    # Ensure all expected columns have a value (default to None for optional fields)
+    params = {col: lead.get(col) for col in _INSERT_LEAD_COLUMNS}
+    conn.execute(_INSERT_LEAD_SQL, params)
     if commit:
         conn.commit()
 

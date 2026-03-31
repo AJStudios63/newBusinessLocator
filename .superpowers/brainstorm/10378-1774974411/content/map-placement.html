@@ -1,0 +1,113 @@
+<h2>Where should the map live in the app?</h2>
+<p class="subtitle">Consider how you'd use it alongside the existing pages (Dashboard, Leads, Kanban, Duplicates, Pipeline)</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Dedicated /map page</h3>
+      <p>New sidebar nav item. Full-page map with its own filters, search, and lead interaction panel. The map is a first-class view like Leads or Kanban.</p>
+      <div class="mockup" style="margin-top: 12px; padding: 12px;">
+        <div style="display: flex; height: 180px; gap: 8px;">
+          <div class="mock-sidebar" style="width: 50px; font-size: 10px; display: flex; flex-direction: column; gap: 6px; padding: 8px;">
+            <span>📊</span>
+            <span>📋</span>
+            <span style="background: rgba(99,102,241,0.3); padding: 2px 4px; border-radius: 4px;">🗺️</span>
+            <span>📌</span>
+            <span>🔄</span>
+          </div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; gap: 8px; height: 32px;">
+              <div class="mock-input" style="flex: 1; height: 100%; font-size: 11px;">Search leads...</div>
+              <div class="mock-button" style="font-size: 10px; height: 100%;">Filters</div>
+            </div>
+            <div class="mock-content" style="flex: 1; position: relative; background: linear-gradient(135deg, #1a2332, #1e293b);">
+              <span style="position: absolute; top: 20%; left: 30%; font-size: 18px;">📍</span>
+              <span style="position: absolute; top: 35%; left: 45%; font-size: 18px;">📍</span>
+              <span style="position: absolute; top: 50%; left: 25%; font-size: 18px;">📍</span>
+              <span style="position: absolute; top: 25%; left: 60%; font-size: 14px;">📍</span>
+              <span style="position: absolute; top: 60%; left: 55%; font-size: 14px;">📍</span>
+              <span style="position: absolute; bottom: 8px; right: 8px; font-size: 10px; opacity: 0.5;">Map</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Split view on /leads page</h3>
+      <p>Add a toggle to the existing Leads page: Table view | Map view | Split view. The map shares filters with the table. No new nav item needed.</p>
+      <div class="mockup" style="margin-top: 12px; padding: 12px;">
+        <div style="display: flex; height: 180px; gap: 8px;">
+          <div class="mock-sidebar" style="width: 50px; font-size: 10px; display: flex; flex-direction: column; gap: 6px; padding: 8px;">
+            <span>📊</span>
+            <span style="background: rgba(99,102,241,0.3); padding: 2px 4px; border-radius: 4px;">📋</span>
+            <span>📌</span>
+            <span>🔄</span>
+          </div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; gap: 8px; height: 32px; align-items: center;">
+              <div style="display: flex; gap: 2px; background: rgba(255,255,255,0.1); border-radius: 6px; padding: 2px;">
+                <span style="font-size: 10px; padding: 4px 8px; border-radius: 4px;">Table</span>
+                <span style="font-size: 10px; padding: 4px 8px; border-radius: 4px;">Map</span>
+                <span style="font-size: 10px; padding: 4px 8px; border-radius: 4px; background: rgba(99,102,241,0.4);">Split</span>
+              </div>
+              <div class="mock-input" style="flex: 1; height: 100%; font-size: 11px;">Filters...</div>
+            </div>
+            <div style="display: flex; flex: 1; gap: 6px;">
+              <div class="mock-content" style="flex: 1; font-size: 9px; overflow: hidden;">
+                <div style="padding: 4px; border-bottom: 1px solid rgba(255,255,255,0.1);">Acme LLC - Nashville</div>
+                <div style="padding: 4px; border-bottom: 1px solid rgba(255,255,255,0.1);">Bob's Grill - Franklin</div>
+                <div style="padding: 4px; border-bottom: 1px solid rgba(255,255,255,0.1);">City Salon - Smyrna</div>
+              </div>
+              <div class="mock-content" style="flex: 1; background: linear-gradient(135deg, #1a2332, #1e293b); position: relative;">
+                <span style="position: absolute; top: 25%; left: 40%; font-size: 14px;">📍</span>
+                <span style="position: absolute; top: 45%; left: 55%; font-size: 14px;">📍</span>
+                <span style="position: absolute; top: 60%; left: 35%; font-size: 14px;">📍</span>
+                <span style="position: absolute; bottom: 4px; right: 4px; font-size: 9px; opacity: 0.5;">Map</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Dashboard map + dedicated page</h3>
+      <p>Small overview map on the Dashboard (territory awareness), plus a full /map page for detailed interaction. Best of both worlds but more to build.</p>
+      <div class="mockup" style="margin-top: 12px; padding: 12px;">
+        <div style="display: flex; height: 180px; gap: 8px;">
+          <div class="mock-sidebar" style="width: 50px; font-size: 10px; display: flex; flex-direction: column; gap: 6px; padding: 8px;">
+            <span style="background: rgba(99,102,241,0.3); padding: 2px 4px; border-radius: 4px;">📊</span>
+            <span>📋</span>
+            <span>🗺️</span>
+            <span>📌</span>
+            <span>🔄</span>
+          </div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+            <div style="font-size: 11px; opacity: 0.7;">Dashboard</div>
+            <div style="display: flex; gap: 6px; flex: 1;">
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                <div class="mock-content" style="flex: 1; font-size: 9px; text-align: center; display: flex; align-items: center; justify-content: center;">Stats Cards</div>
+                <div class="mock-content" style="flex: 1; font-size: 9px; text-align: center; display: flex; align-items: center; justify-content: center;">Charts</div>
+              </div>
+              <div class="mock-content" style="width: 45%; background: linear-gradient(135deg, #1a2332, #1e293b); position: relative;">
+                <span style="position: absolute; top: 20%; left: 35%; font-size: 12px;">📍</span>
+                <span style="position: absolute; top: 40%; left: 50%; font-size: 12px;">📍</span>
+                <span style="position: absolute; top: 55%; left: 30%; font-size: 12px;">📍</span>
+                <span style="position: absolute; bottom: 4px; right: 4px; font-size: 9px; opacity: 0.5;">Mini Map</span>
+                <span style="position: absolute; bottom: 4px; left: 4px; font-size: 9px; color: #818cf8;">Open full →</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
