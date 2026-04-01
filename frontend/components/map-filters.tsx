@@ -8,7 +8,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { MapPin } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { MapPin, X } from "lucide-react";
 import { STAGES, BUSINESS_TYPES, type MapFilters } from "@/lib/types";
 
 const COUNTIES = [
@@ -34,12 +35,26 @@ interface MapFiltersBarProps {
   totalWithoutCoords: number;
 }
 
+const DEFAULT_FILTERS: MapFilters = {};
+
+function hasActiveFilters(filters: MapFilters): boolean {
+  return !!(
+    filters.stage ||
+    filters.county ||
+    filters.businessType ||
+    filters.minScore !== undefined ||
+    filters.maxScore !== undefined
+  );
+}
+
 export function MapFiltersBar({
   filters,
   onFilterChange,
   totalGeocoded,
   totalWithoutCoords,
 }: MapFiltersBarProps) {
+  const isFiltered = hasActiveFilters(filters);
+
   return (
     <div className="absolute top-4 left-4 right-4 z-[1000] pointer-events-none">
       <div className="glass-strong rounded-xl p-3 shadow-lg pointer-events-auto inline-flex items-center gap-3 flex-wrap">
@@ -139,6 +154,18 @@ export function MapFiltersBar({
           />
           <span className="text-xs text-muted-foreground">Score</span>
         </div>
+
+        {isFiltered && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => onFilterChange(DEFAULT_FILTERS)}
+          >
+            <X className="h-3 w-3 mr-1" />
+            Clear Filters
+          </Button>
+        )}
       </div>
     </div>
   );

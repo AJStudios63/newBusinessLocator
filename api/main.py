@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
@@ -14,10 +15,19 @@ from api.routers import leads, stats, pipeline, kanban, map as map_router, geoco
 # Load environment variables from .env file
 load_dotenv()
 
+
+# Bug 3: run startup side-effects in the lifespan handler, not at import time.
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    geocode._startup_cleanup()
+    yield
+
+
 app = FastAPI(
     title="New Business Locator API",
     description="API for managing POS sales leads",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # CORS — configurable via ALLOWED_ORIGINS env var (comma-separated)
