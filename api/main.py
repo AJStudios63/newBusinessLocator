@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routers import leads, stats, pipeline, kanban, map as map_router
+from api.routers import leads, stats, pipeline, kanban, map as map_router, geocode
 
 # Load environment variables from .env file
 load_dotenv()
@@ -42,6 +42,7 @@ app.include_router(stats.router)
 app.include_router(pipeline.router)
 app.include_router(kanban.router)
 app.include_router(map_router.router)
+app.include_router(geocode.router)
 
 
 @app.get("/api/health")

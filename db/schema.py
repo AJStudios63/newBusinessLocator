@@ -93,6 +93,19 @@ CREATE TABLE IF NOT EXISTS duplicate_suggestions (
 );
 """
 
+CREATE_GEOCODE_RUNS = """
+CREATE TABLE IF NOT EXISTS geocode_runs (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    finished_at     TEXT,
+    status          TEXT NOT NULL DEFAULT 'running',
+    total           INTEGER NOT NULL DEFAULT 0,
+    succeeded       INTEGER NOT NULL DEFAULT 0,
+    failed          INTEGER NOT NULL DEFAULT 0,
+    error_message   TEXT
+);
+"""
+
 # ---------------------------------------------------------------------------
 # CREATE INDEX statements
 # ---------------------------------------------------------------------------
@@ -155,6 +168,7 @@ DDL_SCRIPT = (
     + CREATE_STAGE_HISTORY
     + CREATE_SEARCH_CACHE
     + CREATE_DUPLICATE_SUGGESTIONS
+    + CREATE_GEOCODE_RUNS
     + CREATE_INDEXES
     + CREATE_FTS
     + CREATE_FTS_TRIGGERS
