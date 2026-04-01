@@ -41,10 +41,14 @@ export default function MapPage() {
         toast.success(
           `Geocoding complete — ${geocodeStatus.succeeded} leads geocoded`
         );
+      } else if (geocodeStatus.failed > 0) {
+        toast.error("Geocoding failed — no leads were geocoded");
+      } else {
+        toast.info("No leads needed geocoding");
       }
     }
     prevRunningRef.current = geocodeStatus?.running;
-  }, [geocodeStatus?.running]);
+  }, [geocodeStatus?.running, queryClient]);
 
   const geocodeMutation = useMutation({
     mutationFn: startGeocode,

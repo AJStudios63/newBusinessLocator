@@ -68,13 +68,13 @@ export default function PipelinePage() {
     if (status && !status.running) {
       queryClient.invalidateQueries({ queryKey: ["pipelineRuns"] });
     }
-  }, [status?.running]);
+  }, [status?.running, queryClient]);
 
   useEffect(() => {
     if (geocodeStatus && !geocodeStatus.running) {
       queryClient.invalidateQueries({ queryKey: ["geocodeRuns"] });
     }
-  }, [geocodeStatus?.running]);
+  }, [geocodeStatus?.running, queryClient]);
 
   const mutation = useMutation({
     mutationFn: triggerPipelineRun,
