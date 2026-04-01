@@ -766,6 +766,68 @@ def get_pipeline_runs(conn: sqlite3.Connection, limit: int = 10) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Geocode runs
+# ---------------------------------------------------------------------------
+
+
+def insert_geocode_run(conn: sqlite3.Connection, total: int) -> int:
+    """Create a new geocode_runs row with status='running' and return its id."""
+    cur = conn.execute(
+        "INSERT INTO geocode_runs (status, total) VALUES ('running', ?);",
+        (total,),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def update_geocode_run(
+    conn: sqlite3.Connection,
+    run_id: int,
+    status: str,
+    succeeded: int,
+    failed: int,
+    error_message: str | None = None,
+) -> None:
+    """Finalise a geocode run row with results and set finished_at to now."""
+    conn.execute(
+        "UPDATE geocode_runs SET "
+        "finished_at     = datetime('now'), "
+        "status          = ?, "
+        "succeeded       = ?, "
+        "failed          = ?, "
+        "error_message   = ? "
+        "WHERE id = ?;",
+        (status, succeeded, failed, error_message, run_id),
+    )
+    conn.commit()
+
+
+def get_geocode_runs(conn: sqlite3.Connection, limit: int = 10) -> list[dict]:
+    """Return the most recent geocode runs, newest first."""
+    rows = conn.execute(
+        "SELECT * FROM geocode_runs ORDER BY id DESC LIMIT ?;",
+        (limit,),
+    ).fetchall()
+    return _rows_to_dicts(rows)
+
+
+def cleanup_orphaned_geocode_runs(conn: sqlite3.Connection) -> int:
+    """Mark any 'running' geocode_runs as 'failed' (server restart cleanup).
+
+    Returns the number of rows cleaned up.
+    """
+    cur = conn.execute(
+        "UPDATE geocode_runs SET "
+        "status = 'failed', "
+        "finished_at = datetime('now'), "
+        "error_message = 'Interrupted — server restarted before job completed' "
+        "WHERE status = 'running';"
+    )
+    conn.commit()
+    return cur.rowcount
+
+
+# ---------------------------------------------------------------------------
 # Duplicate Detection
 # ---------------------------------------------------------------------------
 
