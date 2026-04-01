@@ -1,24 +1,59 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useRef, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { AppShell } from "@/components/app-shell";
 import { LeadDetailPanel } from "@/components/lead-detail-panel";
 import { MapFiltersBar } from "@/components/map-filters";
-import { getMapLeads, getLead } from "@/lib/api";
+import { getMapLeads, getLead, getGeocodeStatus, startGeocode } from "@/lib/api";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import type { Lead, MapFilters } from "@/lib/types";
 
 const LeadMap = dynamic(() => import("@/components/lead-map"), { ssr: false });
 
 export default function MapPage() {
+  const queryClient = useQueryClient();
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [filters, setFilters] = useState<MapFilters>({});
+  const prevRunningRef = useRef<boolean | undefined>(undefined);
 
   const { data, isLoading } = useQuery({
     queryKey: ["map-leads", filters],
     queryFn: () => getMapLeads(filters),
+  });
+
+  const { data: geocodeStatus } = useQuery({
+    queryKey: ["geocodeStatus"],
+    queryFn: getGeocodeStatus,
+    refetchInterval: (query) => {
+      return query.state.data?.running ? 2000 : false;
+    },
+  });
+
+  // When geocoding finishes, invalidate map data and show toast
+  useEffect(() => {
+    if (prevRunningRef.current === true && geocodeStatus?.running === false) {
+      queryClient.invalidateQueries({ queryKey: ["map-leads"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+      if (geocodeStatus.succeeded > 0) {
+        toast.success(
+          `Geocoding complete — ${geocodeStatus.succeeded} leads geocoded`
+        );
+      }
+    }
+    prevRunningRef.current = geocodeStatus?.running;
+  }, [geocodeStatus?.running]);
+
+  const geocodeMutation = useMutation({
+    mutationFn: startGeocode,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["geocodeStatus"] });
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to start geocoding");
+    },
   });
 
   const handleLeadClick = async (leadId: number) => {
@@ -59,7 +94,14 @@ export default function MapPage() {
           </div>
         ) : (
           <>
-            <LeadMap leads={data.leads} onLeadClick={handleLeadClick} />
+            <LeadMap
+              leads={data.leads}
+              onLeadClick={handleLeadClick}
+              geocodeStatus={geocodeStatus ?? null}
+              totalWithoutCoords={data.total_without_coords}
+              onStartGeocode={() => geocodeMutation.mutate()}
+              isStarting={geocodeMutation.isPending}
+            />
             <MapFiltersBar
               filters={filters}
               onFilterChange={setFilters}

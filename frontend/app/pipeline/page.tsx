@@ -1,7 +1,7 @@
 "use client";
 
+import { useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,9 +15,25 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { getPipelineRuns, getPipelineStatus, triggerPipelineRun } from "@/lib/api";
-import { Loader2, Play, CheckCircle, XCircle, Clock } from "lucide-react";
+import {
+  getPipelineRuns,
+  getPipelineStatus,
+  triggerPipelineRun,
+  getGeocodeRuns,
+  getGeocodeStatus,
+} from "@/lib/api";
+import { Loader2, Play, CheckCircle, XCircle, Clock, MapPin } from "lucide-react";
 import { formatLocalDateTime } from "@/lib/utils";
+
+interface TimelineRow {
+  id: string;
+  job_type: "etl" | "geocode";
+  started_at: string;
+  finished_at: string | null;
+  status: string;
+  label: string;
+  detail: string;
+}
 
 export default function PipelinePage() {
   const queryClient = useQueryClient();
@@ -25,6 +41,11 @@ export default function PipelinePage() {
   const { data: runs, isLoading } = useQuery({
     queryKey: ["pipelineRuns"],
     queryFn: () => getPipelineRuns(20),
+  });
+
+  const { data: geocodeRuns } = useQuery({
+    queryKey: ["geocodeRuns"],
+    queryFn: getGeocodeRuns,
   });
 
   const { data: status, refetch: refetchStatus } = useQuery({
@@ -35,11 +56,25 @@ export default function PipelinePage() {
     },
   });
 
+  const { data: geocodeStatus } = useQuery({
+    queryKey: ["geocodeStatus"],
+    queryFn: getGeocodeStatus,
+    refetchInterval: (query) => {
+      return query.state.data?.running ? 2000 : false;
+    },
+  });
+
   useEffect(() => {
     if (status && !status.running) {
       queryClient.invalidateQueries({ queryKey: ["pipelineRuns"] });
     }
   }, [status?.running]);
+
+  useEffect(() => {
+    if (geocodeStatus && !geocodeStatus.running) {
+      queryClient.invalidateQueries({ queryKey: ["geocodeRuns"] });
+    }
+  }, [geocodeStatus?.running]);
 
   const mutation = useMutation({
     mutationFn: triggerPipelineRun,
@@ -52,12 +87,48 @@ export default function PipelinePage() {
     },
   });
 
+  // Merge ETL and geocode runs into a unified timeline sorted by started_at desc
+  const timeline = useMemo<TimelineRow[]>(() => {
+    const rows: TimelineRow[] = [];
+
+    if (runs?.runs) {
+      for (const r of runs.runs) {
+        rows.push({
+          id: `etl-${r.id}`,
+          job_type: "etl",
+          started_at: r.run_started_at,
+          finished_at: r.run_finished_at,
+          status: r.status,
+          label: "ETL Pipeline",
+          detail: `${r.leads_new} new · ${r.leads_dupes} dupes · ${r.leads_found} found`,
+        });
+      }
+    }
+
+    if (geocodeRuns) {
+      for (const g of geocodeRuns) {
+        rows.push({
+          id: `geo-${g.id}`,
+          job_type: "geocode",
+          started_at: g.started_at,
+          finished_at: g.finished_at,
+          status: g.status,
+          label: "Geocode",
+          detail: `${g.succeeded} geocoded · ${g.failed} failed · ${g.total} total`,
+        });
+      }
+    }
+
+    rows.sort((a, b) => (b.started_at ?? "").localeCompare(a.started_at ?? ""));
+    return rows;
+  }, [runs, geocodeRuns]);
+
   const formatDate = (dateStr: string | null) => {
     return formatLocalDateTime(dateStr) || "—";
   };
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
+  const getStatusIcon = (rowStatus: string) => {
+    switch (rowStatus) {
       case "completed":
         return <CheckCircle className="h-4 w-4 text-emerald-400" />;
       case "failed":
@@ -154,47 +225,52 @@ export default function PipelinePage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-b border-border/50 hover:bg-transparent">
-                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">ID</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Type</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Started</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Finished</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Status</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold text-right">Found</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold text-right">New</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold text-right">Dupes</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Details</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {runs?.runs.map((run) => (
-                      <TableRow key={run.id} className="border-b border-border/30 hover:bg-accent/5 transition-colors">
-                        <TableCell className="font-mono text-sm">{run.id}</TableCell>
-                        <TableCell className="text-muted-foreground">{formatDate(run.run_started_at)}</TableCell>
-                        <TableCell className="text-muted-foreground">{formatDate(run.run_finished_at)}</TableCell>
+                    {timeline.map((row) => (
+                      <TableRow key={row.id} className="border-b border-border/30 hover:bg-accent/5 transition-colors">
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            {getStatusIcon(run.status)}
+                            {row.job_type === "geocode" ? (
+                              <MapPin className="h-4 w-4 text-indigo-400" />
+                            ) : (
+                              <Play className="h-3.5 w-3.5 text-muted-foreground" />
+                            )}
+                            <span className="text-sm font-medium">{row.label}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{formatDate(row.started_at)}</TableCell>
+                        <TableCell className="text-muted-foreground">{formatDate(row.finished_at)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {getStatusIcon(row.status)}
                             <Badge
                               variant={
-                                run.status === "completed"
+                                row.status === "completed"
                                   ? "success"
-                                  : run.status === "failed"
+                                  : row.status === "failed"
                                   ? "destructive"
                                   : "secondary"
                               }
                               className="text-xs"
                             >
-                              {run.status}
+                              {row.status}
                             </Badge>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right font-medium">{run.leads_found}</TableCell>
-                        <TableCell className="text-right font-medium">{run.leads_new}</TableCell>
-                        <TableCell className="text-right font-medium">{run.leads_dupes}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{row.detail}</TableCell>
                       </TableRow>
                     ))}
-                    {(!runs?.runs || runs.runs.length === 0) && (
+                    {timeline.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                          No pipeline runs yet
+                        <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                          No runs yet
                         </TableCell>
                       </TableRow>
                     )}
