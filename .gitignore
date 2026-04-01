@@ -8,3 +8,4 @@ logs/pipeline.log
 .venv/
 .superpowers/
 .DS_Store
+.worktrees/
