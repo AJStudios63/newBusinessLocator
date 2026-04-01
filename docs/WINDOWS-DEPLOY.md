@@ -131,7 +131,7 @@ Press `Ctrl+C` in both windows to stop.
 3. **Install the Frontend service:**
 
 ```powershell
-.\scripts\nssm.exe install NewBusinessLocatorWeb "C:\Program Files\nodejs\node.exe" "node_modules\.bin\next" "start" "--port" "3000"
+.\scripts\nssm.exe install NewBusinessLocatorWeb "C:\Program Files\nodejs\npm.cmd" "run" "start"
 .\scripts\nssm.exe set NewBusinessLocatorWeb AppDirectory "C:\newBusinessLocator\frontend"
 .\scripts\nssm.exe set NewBusinessLocatorWeb DisplayName "New Business Locator Web"
 .\scripts\nssm.exe set NewBusinessLocatorWeb Start SERVICE_AUTO_START
