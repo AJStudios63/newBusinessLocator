@@ -71,7 +71,8 @@ export function FilterPresets({ currentFilters, onApplyPreset }: FilterPresetsPr
       return;
     }
 
-    const { limit: _l, page: _p, pageSize: _ps, ...filtersToSave } = currentFilters;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { limit, page, pageSize, ...filtersToSave } = currentFilters;
     const newPreset: FilterPreset = {
       id: generateId(),
       name: presetName.trim(),
@@ -98,7 +99,8 @@ export function FilterPresets({ currentFilters, onApplyPreset }: FilterPresetsPr
   const handleApplyPreset = (id: string) => {
     const preset = presets.find((p) => p.id === id);
     if (preset) {
-      const { limit: _l, page: _p, pageSize: _ps, ...cleanFilters } = preset.filters;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { limit, page, pageSize, ...cleanFilters } = preset.filters;
       onApplyPreset(cleanFilters);
       toast.success(`Applied preset "${preset.name}"`);
     }
