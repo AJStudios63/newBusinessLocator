@@ -33,7 +33,7 @@ export default function DashboardPage() {
     if (pipelineStatus && !pipelineStatus.running) {
       queryClient.invalidateQueries({ queryKey: ["stats"] });
     }
-  }, [pipelineStatus?.running]);
+  }, [pipelineStatus, queryClient]);
 
   const { data: duplicatesData } = useQuery({
     queryKey: ["duplicatesCount"],

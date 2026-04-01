@@ -48,7 +48,8 @@ export default function MapPage() {
       }
     }
     prevRunningRef.current = geocodeStatus?.running;
-  }, [geocodeStatus?.running, queryClient]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geocodeStatus?.running, geocodeStatus?.succeeded, geocodeStatus?.failed, queryClient]);
 
   const geocodeMutation = useMutation({
     mutationFn: startGeocode,
