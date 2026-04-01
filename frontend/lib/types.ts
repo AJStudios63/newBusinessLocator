@@ -188,3 +188,25 @@ export interface MapFilters {
   maxScore?: number;
   businessType?: string;
 }
+
+export interface GeocodeStatus {
+  running: boolean;
+  run_id: number | null;
+  total: number;
+  done: number;
+  succeeded: number;
+  failed: number;
+  pct: number;
+  started_at: string | null;
+  eta_seconds: number | null;
+}
+
+export interface GeocodeRun {
+  id: number;
+  started_at: string;
+  finished_at: string | null;
+  status: string;
+  total: number;
+  succeeded: number;
+  failed: number;
+}

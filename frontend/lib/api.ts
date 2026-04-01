@@ -12,6 +12,8 @@ import type {
   MergeRequest,
   MapLeadsResponse,
   MapFilters,
+  GeocodeStatus,
+  GeocodeRun,
 } from "./types";
 
 const API_BASE = "/api";
@@ -199,4 +201,17 @@ export async function getMapLeads(filters: MapFilters = {}): Promise<MapLeadsRes
 
   const query = params.toString();
   return fetchJson<MapLeadsResponse>(`${API_BASE}/map${query ? `?${query}` : ""}`);
+}
+
+// Geocode
+export async function startGeocode(): Promise<{ message: string; run_id: number; total: number }> {
+  return fetchJson(`${API_BASE}/geocode/run`, { method: "POST" });
+}
+
+export async function getGeocodeStatus(): Promise<GeocodeStatus> {
+  return fetchJson<GeocodeStatus>(`${API_BASE}/geocode/status`);
+}
+
+export async function getGeocodeRuns(): Promise<GeocodeRun[]> {
+  return fetchJson<GeocodeRun[]>(`${API_BASE}/geocode/runs`);
 }
